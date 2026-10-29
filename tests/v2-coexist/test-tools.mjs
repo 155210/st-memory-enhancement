@@ -141,6 +141,10 @@ const pairEdges = g2.edges.filter(e => e.kind === 'pair').map(e => `${e.a}-${e.b
 assert.deepEqual(pairEdges, ['林悠悠-陈默-暗恋', '苏晴-陈默-宿敌', '新人-苏晴-师徒'].sort(), '外号换主名、同一对只画一次、和你的关系以社交表为准');
 assert.ok(g2.nodes.find(n => n.id === '新人'), '只在关系表里的人也画出来');
 assert.match(renderGraphSvg(g2, layoutGraph(g2, 800, 600)), /var\(--v2g-pair\)[\s\S]*宿敌/);
+const longLabel = { nodes: [{ id: '甲', label: '甲', weight: 1, isUser: true }, { id: '乙', label: '乙', weight: 1, isUser: false }], edges: [{ a: '甲', b: '乙', label: '被威胁者/肉便器（被迫屈从）', weight: 1, kind: 'pair' }] };
+const longSvg = renderGraphSvg(longLabel, layoutGraph(longLabel, 400, 400), 400, 400);
+assert.equal((longSvg.match(/<tspan/g) || []).length, 3, '长关系词换成多行');
+assert.match(longSvg, /<title>被威胁者\/肉便器（被迫屈从）<\/title>/, '完整内容放在 title 里');
 console.log('✓ 关系图：角色关系表的角色之间关系');
 
 const { applyTheme } = await import(REPO + '/core/themes.js');

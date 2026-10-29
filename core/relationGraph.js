@@ -54,7 +54,7 @@ export function buildGraph(sheets, maxNodes = 30) {
             const { primary } = parseNameCell(row.values[0]);
             const relation = clean(row.values[col]);
             if (!primary || !relation || !weight.has(primary)) continue;
-            relations.push({ a: userName, b: primary, label: short(relation, 10), weight: 1, kind: 'relation' });
+            relations.push({ a: userName, b: primary, label: short(relation, 40), weight: 1, kind: 'relation' });
             bump(primary, 1);
         }
     }
@@ -79,7 +79,7 @@ export function buildGraph(sheets, maxNodes = 30) {
             const key = [a, b].sort().join('\u0000');
             if (seenPairs.has(key)) continue;
             seenPairs.add(key);
-            pairs.push({ a, b, label: short(label, 10), weight: 1, kind: 'pair' });
+            pairs.push({ a, b, label: short(label, 40), weight: 1, kind: 'pair' });
             if (a !== userName) bump(a, 1);
             if (b !== userName) bump(b, 1);
         }
@@ -145,6 +145,18 @@ export function layoutGraph(graph, width = 800, height = 600, iterations = 300) 
     return pos;
 }
 
+/** 线上的关系词：每行 7 个字，最多 4 行，超出的在最后一行末尾加…；完整内容放在 title 里 */
+function edgeLabel(label, x, y) {
+    const text = clean(label);
+    const per = 7, maxLines = 4;
+    const lines = [];
+    for (let i = 0; i < text.length && lines.length < maxLines; i += per) lines.push(text.slice(i, i + per));
+    if (text.length > per * maxLines) lines[maxLines - 1] = lines[maxLines - 1].slice(0, per - 1) + '…';
+    const top = y - 4 - (lines.length - 1) * 13 / 2;
+    const spans = lines.map((line, i) => `<tspan x="${x}" y="${(top + i * 13).toFixed(1)}">${esc(line)}</tspan>`).join('');
+    return `<text x="${x}" y="${top.toFixed(1)}" class="v2g-label" text-anchor="middle"><title>${esc(text)}</title>${spans}</text>`;
+}
+
 /** 画成 SVG 字符串 */
 export function renderGraphSvg(graph, pos, width = 800, height = 600) {
     const maxTogether = Math.max(1, ...graph.edges.filter(e => e.kind === 'together').map(e => e.weight));
@@ -154,7 +166,7 @@ export function renderGraphSvg(graph, pos, width = 800, height = 600) {
         const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
         if (e.kind === 'relation' || e.kind === 'pair') {
             const stroke = e.kind === 'pair' ? 'var(--v2g-pair)' : 'var(--v2g-line)';
-            return `<g class="v2g-edge" data-a="${esc(e.a)}" data-b="${esc(e.b)}"><line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="${stroke}" stroke-width="1.5"/><text x="${mx}" y="${my - 4}" class="v2g-label" text-anchor="middle">${esc(e.label)}</text></g>`;
+            return `<g class="v2g-edge" data-a="${esc(e.a)}" data-b="${esc(e.b)}"><line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="${stroke}" stroke-width="1.5"/>${edgeLabel(e.label, mx, my)}</g>`;
         }
         const opacity = (0.25 + 0.6 * (e.weight / maxTogether)).toFixed(2);
         return `<g class="v2g-edge" data-a="${esc(e.a)}" data-b="${esc(e.b)}"><line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="var(--v2g-line)" stroke-dasharray="4 4" stroke-opacity="${opacity}"><title>${esc(e.a)} 和 ${esc(e.b)}：${esc(e.label)}</title></line></g>`;
@@ -167,7 +179,7 @@ export function renderGraphSvg(graph, pos, width = 800, height = 600) {
         return `<g class="v2g-node" data-id="${esc(n.id)}" transform="translate(${p.x},${p.y})" style="cursor:grab"><circle r="${r.toFixed(1)}" fill="${n.isUser ? 'var(--v2g-user)' : 'var(--v2g-node)'}" stroke="var(--v2g-line)"/><text y="${(r + 13).toFixed(1)}" text-anchor="middle" class="v2g-name">${esc(n.label)}</text></g>`;
     }).join('');
     return `<svg class="v2-relation-graph" viewBox="0 0 ${width} ${height}" width="100%" style="height:auto;max-height:75vh;touch-action:none;user-select:none;-webkit-user-select:none">
-<style>.v2-relation-graph{--v2g-line:var(--SmartThemeBodyColor,#888);--v2g-node:var(--SmartThemeQuoteColor,#6a9);--v2g-user:var(--SmartThemeEmColor,#c96);--v2g-pair:var(--SmartThemeQuoteColor,#6a9)}.v2g-label{font-size:11px;fill:var(--SmartThemeBodyColor,#ccc);opacity:.8}.v2g-name{font-size:13px;fill:var(--SmartThemeBodyColor,#eee)}</style>
+<style>.v2-relation-graph{--v2g-line:var(--SmartThemeBodyColor,#888);--v2g-node:var(--SmartThemeQuoteColor,#6a9);--v2g-user:var(--SmartThemeEmColor,#c96);--v2g-pair:var(--SmartThemeQuoteColor,#6a9)}.v2g-label{font-size:11px;fill:var(--SmartThemeBodyColor,#ccc);paint-order:stroke;stroke:var(--SmartThemeBlurTintColor,#1a1a2e);stroke-width:3px;stroke-linejoin:round}.v2g-name{font-size:13px;fill:var(--SmartThemeBodyColor,#eee)}</style>
 <g class="v2g-viewport">${lines}${circles}</g></svg>`;
 }
 
@@ -189,7 +201,14 @@ export function attachGraphInteraction(svg, graph, pos) {
             const line = g.querySelector('line');
             line.setAttribute('x1', a.x); line.setAttribute('y1', a.y); line.setAttribute('x2', b.x); line.setAttribute('y2', b.y);
             const text = g.querySelector('text');
-            if (text) { text.setAttribute('x', (a.x + b.x) / 2); text.setAttribute('y', (a.y + b.y) / 2 - 4); }
+            if (text) {
+                // 多行标签：整体跟着线的中点走
+                const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+                const spans = [...text.querySelectorAll('tspan')];
+                const top = my - 4 - (spans.length - 1) * 13 / 2;
+                text.setAttribute('x', mx); text.setAttribute('y', top);
+                spans.forEach((span, i) => { span.setAttribute('x', mx); span.setAttribute('y', top + i * 13); });
+            }
         });
     };
     let drag = null;
