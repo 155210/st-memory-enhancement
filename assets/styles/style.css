@@ -877,6 +877,8 @@ body[class*="v2-theme-"] .v2-relation-graph {
 
 /* ---------- v2：额外请求套用的预设 ---------- */
 .v2p-panel { margin: 6px 5px; }
+.v2p-summary { cursor: pointer; font-weight: bold; padding: 4px 0; }
+.v2p-fold[open] > .v2p-summary { margin-bottom: 4px; }
 .v2p-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
 .v2p-title { flex: 1; min-width: 120px; font-weight: bold; }
 .v2p-title small { margin-left: 6px; font-weight: normal; opacity: .75; }

@@ -209,3 +209,7 @@ console.log('✓ 撤回大总结：整层恢复、之后又聊了也能撤、清
 assert.equal(SM.parseSummaryOutput('格式：<summary>大总结</summary>\n好的\n<summary>真正的内容</summary>').summary, '真正的内容');
 assert.equal(SM.parseSummaryOutput('<think>想</think><status>无关</status>正文内容').summary, '正文内容');
 console.log('✓ 大总结输出解析更稳');
+assert.equal(SM.looksLikeStory('他推开门，'.repeat(200)), true, '没标签的长正文当成续写剧情');
+assert.equal(SM.looksLikeStory(`<summary>${'事'.repeat(900)}</summary>`), false);
+assert.equal(SM.looksLikeStory('短短一句总结'), false);
+console.log('✓ 续写剧情的回复不写进表');

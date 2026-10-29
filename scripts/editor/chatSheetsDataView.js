@@ -1,3 +1,4 @@
+import { summaryConfig } from '../../core/summaryManager.js';
 import { V2 } from '../../core/v2keys.js';
 import { BASE, DERIVED, EDITOR, SYSTEM, USER } from '../../core/manager.js';
 import { updateSystemMessageTableStatus } from "../renderer/tablePushToChat.js";
@@ -527,10 +528,27 @@ export async function renderEditableSheetsDOM(_sheets, _viewSheetsContainer, _ce
         console.log("渲染表格：", sheetElement)
         $(sheetContainer).append(sheetElement)
 
+        // v2：点表名折叠 / 展开；大总结和归档表默认折叠（行多，平时不用看），手动点过的记住
+        const collapsed = sheetCollapsed.has(sheet.uid) ? sheetCollapsed.get(sheet.uid) : defaultCollapsed(sheet)
+        const applyCollapse = (value) => {
+            sheetCollapsed.set(sheet.uid, value)
+            sheetContainer.style.display = value ? 'none' : ''
+            sheetTitleText.innerText = `${value ? '▸' : '▾'} #${index} ${sheet.name}${value ? `（${Math.max(0, sheet.getRowCount() - 1)} 行，点开）` : ''}`
+        }
+        sheetTitleText.style.cursor = 'pointer'
+        sheetTitleText.addEventListener('click', () => applyCollapse(sheetContainer.style.display !== 'none'))
+        applyCollapse(collapsed)
+
         $(_viewSheetsContainer).append(sheetTitleText)
         $(_viewSheetsContainer).append(sheetContainer)
         $(_viewSheetsContainer).append(`<hr>`)
     }
+}
+
+const sheetCollapsed = new Map()
+function defaultCollapsed(sheet) {
+    const { summaryTable, archiveTable } = summaryConfig()
+    return sheet.name === summaryTable || sheet.name === archiveTable
 }
 
 /**

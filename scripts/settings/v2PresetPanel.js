@@ -41,6 +41,8 @@ export function render() {
     const enabledCount = imported.filter(e => e.enabled).length;
     const on = USER.tableBaseSetting.v2_extra_preset_enabled === true;
     box.innerHTML = `
+        <details class="v2p-fold"${folded() ? '' : ' open'}>
+        <summary class="v2p-summary">额外请求套用酒馆预设：${on ? '开' : '关'}${imported.length ? ` · ${esc(preset.name)}（已启用 ${enabledCount}/${imported.length}）` : ' · 未导入'}</summary>
         <div class="v2p-bar">
             <label class="checkbox_label"><input type="checkbox" class="v2p-enabled" ${on ? 'checked' : ''}><span>额外请求套用酒馆预设</span></label>
             <span class="v2p-title">${esc(preset.name || '未导入预设')}${imported.length ? `<small>已启用 ${enabledCount}/${imported.length}</small>` : ''}</span>
@@ -53,7 +55,14 @@ export function render() {
         ${preset.extras.length ? `<details class="v2p-extras"><summary>没在顺序里的条目（${preset.extras.length}）</summary>
             <small class="toggle-description justifyLeft">这些条目在预设的条目库里，但酒馆的条目列表没放，所以酒馆里看不到也不发送。这里同样不发，需要的点「加入末尾」。</small>
             <ul class="v2p-list">${preset.extras.map(e => `<li class="v2p-row is-off" data-id="${esc(e.id)}"><button type="button" class="v2p-open"><span class="v2p-name">${esc(e.name)}</span><span class="v2p-tag">${ROLE_LABEL[e.role]}</span></button><button type="button" class="menu_button v2p-append">加入末尾</button></li>`).join('')}</ul>
-        </details>` : ''}`;
+        </details>` : ''}
+        </details>`;
+}
+
+// 折叠状态记在本机，重画面板时不变
+const FOLD_KEY = 'table_v2_preset_folded';
+function folded() {
+    try { return localStorage.getItem(FOLD_KEY) !== '0'; } catch (_) { return true; }
 }
 
 function importFile() {
@@ -150,6 +159,10 @@ export function initPresetPanel() {
     if (!box || box.dataset.bound) return render();
     box.dataset.bound = '1';
     bindDrag(box);
+    box.addEventListener('toggle', (event) => {
+        if (!event.target.classList?.contains('v2p-fold')) return;
+        try { localStorage.setItem(FOLD_KEY, event.target.open ? '0' : '1'); } catch (_) { /* 存不了就算了 */ }
+    }, true);
     box.addEventListener('click', (event) => {
         const t = event.target;
         const row = t.closest('.v2p-row');

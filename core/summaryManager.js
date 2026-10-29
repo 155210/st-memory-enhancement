@@ -454,9 +454,17 @@ async function cachedAsk(state, system, prompt, title) {
     const key = hashText(system + '\n' + prompt);
     if (state.cache[key]) return state.cache[key];
     const result = await summaryHooks.ask(system, prompt, title);
+    if (looksLikeStory(result)) throw new Error('回复没有 <summary> 标签、又很长，像是在续写剧情，没有写进表格（检查额外请求用的预设，或换个模型再试）');
     state.cache = Object.fromEntries(Object.entries(state.cache).slice(-19));   // 只留最近 20 条
     state.cache[key] = result;
     return result;
+}
+
+/** 没有 <summary> 标签、正文又远超总结长度的回复，多半是模型在续写剧情 */
+export function looksLikeStory(text) {
+    const plain = String(text ?? '').replace(/<think(ing)?>[\s\S]*?<\/think(ing)?>/gi, '');
+    if (/<summary>[\s\S]*?<\/summary>/.test(plain)) return false;
+    return parseSummaryOutput(plain).summary.length > 800;
 }
 
 function hashText(text) {
