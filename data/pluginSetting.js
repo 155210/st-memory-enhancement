@@ -159,6 +159,8 @@ export const defaultSettings = await switchLanguage('__defaultSettings__', {
     // v2：回填每批几条 AI 回复；表格配色
     v2_backfill_batch: 5,
     v2_theme: 'follow',
+    // v2：地图 off 关闭 / box 程序画框图 / ai AI 画示意图
+    v2_map_mode: 'box',
     // 预留
     updateIndex:3,
     /**

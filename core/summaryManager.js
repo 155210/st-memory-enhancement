@@ -1,6 +1,7 @@
 import { BASE, DERIVED, EDITOR, USER } from './manager.js';
 import { V2 } from './v2keys.js';
 import { Cell } from './table/cell.js';
+import { placesInMessage, splitPlace } from './locationTree.js';
 import { getHeaders, isNameKeyedSheet, parseNameCell, stripColumnMark, writeRowValues, findRowByName } from './rowIdentity.js';
 import { handleCustomAPIRequest, handleMainAPIRequest } from '../scripts/settings/standaloneAPI.js';
 
@@ -424,20 +425,34 @@ export function buildRecallBlock(sheets) {
     if (!archive || archive.getRowCount() <= 1) return '';
     const names = collectNames(sheets);
     const present = new Set(findRolesInText(recentText(config.recallDepth), names, 20));
-    if (!present.size) return '';
+    // 地名也算：最近一个时间标签里的地点，取三个字以上的段（「走廊」这类太泛的不算）
+    const places = recentPlaceSegments(config.recallDepth).filter(seg => seg.length >= 3);
+    if (!present.size && !places.length) return '';
     const rows = readSummaryRows(archive);
     // 越少见的名字越有区分度
     const freq = new Map();
     rows.forEach(r => r.roles.split('|').filter(Boolean).forEach(n => freq.set(n, (freq.get(n) || 0) + 1)));
     const scored = rows.map(r => {
         const roles = r.roles ? r.roles.split('|').filter(Boolean) : findRolesInText(r.content, names, 5);
-        const score = roles.filter(n => present.has(n)).reduce((s, n) => s + 1 / (freq.get(n) || 1), 0);
+        const score = roles.filter(n => present.has(n)).reduce((s, n) => s + 1 / (freq.get(n) || 1), 0)
+            + places.filter(seg => r.content.includes(seg)).length * 0.5;
         return { r, score };
     }).filter(x => x.score > 0);
     if (!scored.length) return '';
     const picked = scored.sort((a, b) => b.score - a.score || b.r.rowIndex - a.r.rowIndex).slice(0, config.recallCount)
         .sort((a, b) => a.r.rowIndex - b.r.rowIndex);
-    return `【相关旧事（按本轮出场的人从归档里找回，只供参考，不要改写）】\n${picked.map(x => `- ${x.r.range ? `[${x.r.range}层] ` : ''}${x.r.content}`).join('\n')}\n`;
+    return `【相关旧事（按本轮出场的人和地点从归档里找回，只供参考，不要改写）】\n${picked.map(x => `- ${x.r.range ? `[${x.r.range}层] ` : ''}${x.r.content}`).join('\n')}\n`;
+}
+
+/** 最近几层里最后一个时间标签的地点，拆成由大到小的几段 */
+function recentPlaceSegments(depth) {
+    const chat = USER.getContext().chat || [];
+    for (let i = chat.length - 1; i >= 0 && i >= chat.length - depth * 2; i--) {
+        if (chat[i]?.is_user) continue;
+        const places = placesInMessage(chat[i]?.mes);
+        if (places.length) return splitPlace(places[places.length - 1]);
+    }
+    return [];
 }
 
 const DATE_RE = /(\d{4})年(\d{1,2})月(\d{1,2})日/;
