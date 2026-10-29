@@ -156,6 +156,9 @@ export const defaultSettings = await switchLanguage('__defaultSettings__', {
     // v2：定时提示词，每行「间隔轮数|提醒内容」
     v2_reminders_enabled: true,
     v2_reminders: '',
+    // v2：回填每批几条 AI 回复；表格配色
+    v2_backfill_batch: 5,
+    v2_theme: 'follow',
     // 预留
     updateIndex:3,
     /**

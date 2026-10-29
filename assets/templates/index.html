@@ -43,6 +43,22 @@
                             <i class="fa-solid fa-layer-group"></i>
                             <a>整理旧大总结</a>
                         </div>
+                        <div class="menu_button_icon menu_button interactable" id="table_v2_relation_graph_button" title="把角色表、社交表和大总结画成关系网，只给你看">
+                            <i class="fa-solid fa-diagram-project"></i>
+                            <a>关系图</a>
+                        </div>
+                        <div class="menu_button_icon menu_button interactable" id="table_v2_fusion_button" title="挑一段楼层让 AI 写一条更细的总结">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i>
+                            <a>手动融合总结</a>
+                        </div>
+                        <div class="menu_button_icon menu_button interactable" id="table_v2_backfill_button" title="新导入的聊天从第一层开始分批补填表格，开始前会确认">
+                            <i class="fa-solid fa-backward-fast"></i>
+                            <a>从头回填表格</a>
+                        </div>
+                        <div class="menu_button_icon menu_button interactable" id="table_v2_diagnostics_button" title="导出版本、设置、表格概况、最近报错和请求，方便排查（不含密钥）">
+                            <i class="fa-solid fa-stethoscope"></i>
+                            <a>导出诊断</a>
+                        </div>
                         <div class="menu_button_icon menu_button interactable" id="table_v2_injection_preview_button" title="看本轮实际发给 AI 的表格、行数和字数">
                             <i class="fa-solid fa-eye"></i>
                             <a>本轮注入预览</a>
@@ -103,6 +119,17 @@
                                 <label>几条压成一条 <input type="number" id="table_v2_summary_batch" class="text_pole" min="2" style="width: 60px"></label>
                                 <label>最近几条不压 <input type="number" id="table_v2_summary_keep" class="text_pole" min="0" style="width: 60px"></label>
                                 <label>每轮最多找回几条旧事 <input type="number" id="table_v2_summary_recall_count" class="text_pole" min="0" style="width: 60px"></label>
+                            </div>
+                            <div style="padding-left: 5px;">
+                                <label>表格配色（v2）
+                                    <select id="table_v2_theme" class="text_pole">
+                                        <option value="follow">跟随酒馆主题</option>
+                                        <option value="paper">暖色纸张</option>
+                                        <option value="night">深蓝夜间</option>
+                                        <option value="mint">青绿</option>
+                                        <option value="contrast">高对比</option>
+                                    </select>
+                                </label>
                             </div>
                             <div class="checkbox_label range-block justifyLeft">
                                 <input type="checkbox" id="table_v2_tier_switch"><span>角色表分档发送（v2）</span>
