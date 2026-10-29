@@ -322,6 +322,18 @@ function InitBinging() {
         USER.tableBaseSetting.tableDebugModeAble = this.checked;
         EDITOR.success(this.checked ? '调试模式已开启' : '调试模式已关闭');
     });
+    // v2：大总结交给程序管
+    $('#table_v2_summary_switch').change(function () {
+        USER.tableBaseSetting.v2_summary_enabled = this.checked;
+        $('#table_v2_summary_options').toggle(this.checked);
+        EDITOR.success(this.checked ? '大总结现在由程序维护' : '大总结交回给 AI 按表格规则写');
+    });
+    ['event_threshold', 'batch', 'keep', 'recall_count'].forEach(key => {
+        $(`#table_v2_summary_${key}`).on('change', function () {
+            const value = parseInt(this.value);
+            if (Number.isInteger(value) && value >= 0) USER.tableBaseSetting[`v2_summary_${key}`] = value;
+        });
+    });
     // 插件读表开关
     $('#table_read_switch').change(function () {
         USER.tableBaseSetting.isAiReadTable = this.checked;
@@ -608,6 +620,9 @@ export function renderSetting() {
     updateSwitch('#table_switch_debug_mode', USER.tableBaseSetting.tableDebugModeAble);
     updateSwitch('#table_read_switch', USER.tableBaseSetting.isAiReadTable);
     updateSwitch('#table_edit_switch', USER.tableBaseSetting.isAiWriteTable);
+    updateSwitch('#table_v2_summary_switch', USER.tableBaseSetting.v2_summary_enabled !== false);
+    $('#table_v2_summary_options').toggle(USER.tableBaseSetting.v2_summary_enabled !== false);
+    ['event_threshold', 'batch', 'keep', 'recall_count'].forEach(key => $(`#table_v2_summary_${key}`).val(USER.tableBaseSetting[`v2_summary_${key}`]));
     updateSwitch('#table_to_chat', USER.tableBaseSetting.isTableToChat);
     // updateSwitch('#advanced_settings', USER.tableBaseSetting.advanced_settings);
     updateSwitch('#confirm_before_execution', USER.tableBaseSetting.confirm_before_execution);

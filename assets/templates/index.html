@@ -39,6 +39,10 @@
                             <i class="fa-solid fa-arrows-rotate"></i>
                             <a>同步模板到本聊天</a>
                         </div>
+                        <div class="menu_button_icon menu_button interactable" id="table_v2_migrate_summary_button" title="给已有的大总结补上层级、楼层范围、涉及角色，再按设置压缩，原文移进归档表">
+                            <i class="fa-solid fa-layer-group"></i>
+                            <a>整理旧大总结</a>
+                        </div>
                         <div class="menu_button_icon menu_button interactable" id="table_debug_log_button">
                             <i class="fa-solid fa-bug"></i>
                             <a data-i18n="Logs">Log</a>
@@ -85,6 +89,16 @@
                                     data-i18n="Debug mode">调试模式</span>
                                 <small class="toggle-description justifyLeft"
                                     data-i18n="Debug mode description">(开启后会有一定性能损耗，仅用于代码开发调试)</small>
+                            </div>
+                            <div class="checkbox_label range-block justifyLeft">
+                                <input type="checkbox" id="table_v2_summary_switch"><span>大总结交给程序管（v2）</span>
+                                <small class="toggle-description justifyLeft">(事件历史满了另发一次请求写大总结；大总结多了逐级压成「卷」「篇」，原文移进「总结归档」表；按本轮出场的人从归档找回旧事；给大总结里的日期标上几天前)</small>
+                            </div>
+                            <div id="table_v2_summary_options" style="display: flex; flex-wrap: wrap; gap: 6px 12px; padding-left: 5px;">
+                                <label>事件满几条写大总结 <input type="number" id="table_v2_summary_event_threshold" class="text_pole" min="2" style="width: 60px"></label>
+                                <label>几条压成一条 <input type="number" id="table_v2_summary_batch" class="text_pole" min="2" style="width: 60px"></label>
+                                <label>最近几条不压 <input type="number" id="table_v2_summary_keep" class="text_pole" min="0" style="width: 60px"></label>
+                                <label>每轮最多找回几条旧事 <input type="number" id="table_v2_summary_recall_count" class="text_pole" min="0" style="width: 60px"></label>
                             </div>
 
                             <h4 data-i18n="Message template">消息模板</h4>

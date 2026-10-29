@@ -15,6 +15,7 @@ export const V2 = {
     chatSheets: 'sheets_v2',
     chatSelectedSheets: 'selected_sheets_v2',
     chatImport: 'memory_enhancement_v2_import',
+    summaryState: 'memory_enhancement_v2_summary',
     // 每条消息上的数据
     pieceHash: 'hash_sheets_v2',
     twoStepLinks: 'two_step_links_v2',
