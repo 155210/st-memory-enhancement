@@ -837,3 +837,30 @@ body[class*="v2-theme-"] .v2-relation-graph {
     --v2g-user: var(--v2t-accent);
     background: var(--v2t-bg);
 }
+
+/* ---------- v2：额外请求面板 ---------- */
+#v2_request_panel {
+    position: fixed;
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    max-width: 720px;
+    margin: 0 auto;
+    z-index: 10050;
+    background: var(--SmartThemeBlurTintColor, #222);
+    color: var(--SmartThemeBodyColor, #ddd);
+    border: 1px solid var(--SmartThemeBorderColor, #555);
+    border-radius: 8px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, .4);
+    font-size: 13px;
+    backdrop-filter: blur(8px);
+}
+#v2_request_panel .v2rp-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 6px 8px; }
+#v2_request_panel .v2rp-status { flex: 1; min-width: 120px; opacity: .85; }
+#v2_request_panel .v2rp-buttons { display: flex; gap: 4px; }
+#v2_request_panel .v2rp-buttons .menu_button { padding: 2px 8px; margin: 0; font-size: 12px; }
+#v2_request_panel .v2rp-body { margin: 0; padding: 6px 8px; max-height: 32vh; overflow: auto; white-space: pre-wrap; word-break: break-word; border-top: 1px solid var(--SmartThemeBorderColor, #555); font-size: 12px; }
+#v2_request_panel .v2rp-body:empty { display: none; }
+#v2_request_panel[data-state="error"] .v2rp-status { color: var(--fullred, #e55); font-weight: bold; }
+#v2_request_panel[data-state="done"] .v2rp-status { color: var(--SmartThemeQuoteColor, #6a9); }
+#v2_request_panel[data-state="waiting"] .v2rp-status { color: var(--SmartThemeEmColor, #c96); }

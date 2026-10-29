@@ -1,6 +1,7 @@
 import { V2 } from '../../core/v2keys.js';
 import {BASE, DERIVED, EDITOR, SYSTEM, USER} from '../../core/manager.js';
 import { runSummaryAfterFill } from '../../core/summaryManager.js';
+import { maybeDrawOnNewPlace } from '../../core/worldMap.js';
 import { executeIncrementalUpdateFromSummary } from "./absoluteRefresh.js";
 import { newPopupConfirm } from '../../components/popupConfirm.js';
 import { reloadCurrentChat } from "/script.js"
@@ -214,6 +215,7 @@ export async function manualSummaryChat(todoChats, confirmResult, swipeUid = '')
 
         // v2：分步填表后同样检查要不要写大总结、压缩
         await runSummaryAfterFill(referencePiece);
+        maybeDrawOnNewPlace();   // AI 地图模式下到了新地点，后台排队画一张
 
         // 保存并刷新UI
         await USER.saveChat();

@@ -3,7 +3,7 @@ import { V2 } from './v2keys.js';
 import { Cell } from './table/cell.js';
 import { placesInMessage, splitPlace } from './locationTree.js';
 import { getHeaders, isNameKeyedSheet, parseNameCell, stripColumnMark, writeRowValues, findRowByName } from './rowIdentity.js';
-import { handleCustomAPIRequest, handleMainAPIRequest } from '../scripts/settings/standaloneAPI.js';
+import { askExtra } from './extraRequest.js';
 
 /**
  * @description 大总结交给程序管（B3、M1、M2、M3、M5、M6、M8）
@@ -147,17 +147,11 @@ export function findRolesInText(text, names, limit = 3) {
 // ---------------------------------------------------------------- 请求模型
 
 /** 测试时可以换掉 ask */
-export const summaryHooks = { ask: (system, user) => askModel(system, user) };
+export const summaryHooks = { ask: (system, user, title) => askModel(system, user, title) };
 
-async function askModel(system, user) {
-    const useMain = USER.tableBaseSetting.use_main_api !== false;
-    const result = useMain
-        ? await handleMainAPIRequest([{ role: 'system', content: system }, { role: 'user', content: user }], null, true)
-        : await handleCustomAPIRequest(system, user, false, true);
-    // 诊断导出用：记下最近一次额外请求
-    DERIVED.any.lastExtraRequest = { at: new Date().toISOString(), system, user, result: typeof result === 'string' ? result : String(result) };
-    if (!result || result === 'suspended') throw new Error('请求没有返回内容');
-    return String(result);
+async function askModel(system, user, title) {
+    // 排队、等正文生成完、流式显示都在 askExtra 里
+    return askExtra(system, user, title);
 }
 
 /** 从模型输出里取 <summary> 和 <past>（没有标签就整段当总结） */
@@ -237,7 +231,7 @@ export async function runSummaryPipeline(piece, floor, { sourcePiece = piece, co
             const text = eventText(t.events);
             const lastBig = readSummaryRows(t.summary).filter(r => r.level === LEVELS[0]).pop();
             const prompt = `${lastBig ? `（上一条大总结的结尾，只用来衔接，不要复述：${lastBig.content.slice(-60)}）\n\n` : ''}事件历史：\n${text}`;
-            const result = await cachedAsk(state, EVENT_SYSTEM, prompt);
+            const result = await cachedAsk(state, EVENT_SYSTEM, prompt, `写大总结（事件 ${eventCount} 条）`);
             const { summary: content, past } = parseSummaryOutput(result);
             if (!content) throw new Error('大总结为空');
             t = load();
@@ -268,7 +262,7 @@ export async function runSummaryPipeline(piece, floor, { sourcePiece = piece, co
                     const group = pickGroup();
                     if (!group) break;
                     const prompt = group.map((r, i) => `${i + 1}. ${r.content}`).join('\n');
-                    const result = await cachedAsk(state, COMPRESS_SYSTEM(LEVELS[level], LEVELS[level + 1]).replace('{n}', group.length), prompt);
+                    const result = await cachedAsk(state, COMPRESS_SYSTEM(LEVELS[level], LEVELS[level + 1]).replace('{n}', group.length), prompt, `压缩 ${group.length} 条${LEVELS[level]}总结成${LEVELS[level + 1]}`);
                     const { summary: content } = parseSummaryOutput(result);
                     if (!content) throw new Error(`${LEVELS[level + 1]}总结为空`);
                     t = load();
@@ -378,10 +372,10 @@ export async function migrateOldSummaries(dryRun = false) {
 }
 
 /** 同样的输入不重复请求（重 roll 时直接用上次的结果） */
-async function cachedAsk(state, system, prompt) {
+async function cachedAsk(state, system, prompt, title) {
     const key = hashText(system + '\n' + prompt);
     if (state.cache[key]) return state.cache[key];
-    const result = await summaryHooks.ask(system, prompt);
+    const result = await summaryHooks.ask(system, prompt, title);
     state.cache = Object.fromEntries(Object.entries(state.cache).slice(-19));   // 只留最近 20 条
     state.cache[key] = result;
     return result;

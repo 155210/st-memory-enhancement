@@ -123,7 +123,7 @@ export async function drawAiMap(force = false) {
             `在场人物：${presentNames(sheets).join('、') || '不详'}`,
             `最近剧情：\n${recentText(2).replace(/<tableEdit>[\s\S]*?<\/tableEdit>/g, '').slice(-3000)}`,
         ].filter(Boolean).join('\n');
-        const svg = sanitizeSvg(await summaryHooks.ask(AI_MAP_SYSTEM, prompt));
+        const svg = sanitizeSvg(await summaryHooks.ask(AI_MAP_SYSTEM, prompt, `画地图：${path}`));
         if (!svg) throw new Error('AI 没有返回 SVG');
         const meta = USER.getContext().chatMetadata;
         meta[V2.mapCache] ||= {};

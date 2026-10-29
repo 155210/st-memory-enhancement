@@ -132,10 +132,11 @@ export function renderGraphSvg(graph, pos, width = 800, height = 600) {
     const maxWeight = Math.max(1, ...graph.nodes.filter(n => !n.isUser).map(n => n.weight));
     const circles = graph.nodes.map(n => {
         const p = pos.get(n.id);
-        const r = n.isUser ? 16 : 8 + 8 * (n.weight / maxWeight);
+        const base = Math.max(6, Math.min(width, height) / 50);
+        const r = n.isUser ? base * 1.8 : base + base * (n.weight / maxWeight);
         return `<g class="v2g-node" data-id="${esc(n.id)}" transform="translate(${p.x},${p.y})" style="cursor:grab"><circle r="${r.toFixed(1)}" fill="${n.isUser ? 'var(--v2g-user)' : 'var(--v2g-node)'}" stroke="var(--v2g-line)"/><text y="${(r + 13).toFixed(1)}" text-anchor="middle" class="v2g-name">${esc(n.label)}</text></g>`;
     }).join('');
-    return `<svg class="v2-relation-graph" viewBox="0 0 ${width} ${height}" width="100%" style="max-height:70vh;touch-action:none;user-select:none">
+    return `<svg class="v2-relation-graph" viewBox="0 0 ${width} ${height}" width="100%" style="height:auto;max-height:75vh;touch-action:none;user-select:none;-webkit-user-select:none">
 <style>.v2-relation-graph{--v2g-line:var(--SmartThemeBodyColor,#888);--v2g-node:var(--SmartThemeQuoteColor,#6a9);--v2g-user:var(--SmartThemeEmColor,#c96)}.v2g-label{font-size:11px;fill:var(--SmartThemeBodyColor,#ccc);opacity:.8}.v2g-name{font-size:13px;fill:var(--SmartThemeBodyColor,#eee)}</style>
 <g class="v2g-viewport">${lines}${circles}</g></svg>`;
 }
@@ -162,13 +163,45 @@ export function attachGraphInteraction(svg, graph, pos) {
         });
     };
     let drag = null;
+    // 手机双指缩放：记下每个手指的位置
+    const pointers = new Map();
+    let pinch = null;
+    const zoomAt = (p, next) => {
+        next = Math.min(4, Math.max(0.3, next));
+        tx = p.x - ((p.x - tx) * next) / scale; ty = p.y - ((p.y - ty) * next) / scale;
+        scale = next;
+        apply();
+    };
+    const pinchState = () => {
+        const [a, b] = [...pointers.values()];
+        return { dist: Math.hypot(a.x - b.x, a.y - b.y), mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } };
+    };
     svg.addEventListener('pointerdown', (event) => {
-        const node = event.target.closest('.v2g-node');
         const p = toSvg(event);
-        drag = node ? { id: node.dataset.id, node } : { pan: true, x: p.x - tx, y: p.y - ty };
+        pointers.set(event.pointerId, p);
         svg.setPointerCapture(event.pointerId);
+        if (pointers.size === 2) {
+            drag = null;
+            pinch = { ...pinchState(), scale };
+            return;
+        }
+        const node = event.target.closest('.v2g-node');
+        drag = node ? { id: node.dataset.id, node } : { pan: true, x: p.x - tx, y: p.y - ty };
     });
+    const release = (event) => {
+        pointers.delete(event.pointerId);
+        if (pointers.size < 2) pinch = null;
+        if (!pointers.size) drag = null;
+    };
+    svg.addEventListener('pointerup', release);
+    svg.addEventListener('pointercancel', release);
     svg.addEventListener('pointermove', (event) => {
+        if (pointers.has(event.pointerId)) pointers.set(event.pointerId, toSvg(event));
+        if (pinch && pointers.size === 2) {
+            const now = pinchState();
+            if (pinch.dist > 0) zoomAt(now.mid, pinch.scale * (now.dist / pinch.dist));
+            return;
+        }
         if (!drag) return;
         const p = toSvg(event);
         if (drag.pan) { tx = p.x - drag.x; ty = p.y - drag.y; return apply(); }
@@ -177,13 +210,8 @@ export function attachGraphInteraction(svg, graph, pos) {
         drag.node.setAttribute('transform', `translate(${point.x},${point.y})`);
         redrawEdges(drag.id);
     });
-    svg.addEventListener('pointerup', () => { drag = null; });
     svg.addEventListener('wheel', (event) => {
         event.preventDefault();
-        const p = toSvg(event);
-        const next = Math.min(4, Math.max(0.3, scale * (event.deltaY < 0 ? 1.1 : 0.9)));
-        tx = p.x - ((p.x - tx) * next) / scale; ty = p.y - ((p.y - ty) * next) / scale;
-        scale = next;
-        apply();
+        zoomAt(toSvg(event), scale * (event.deltaY < 0 ? 1.1 : 0.9));
     }, { passive: false });
 }

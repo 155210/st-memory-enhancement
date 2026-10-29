@@ -33,7 +33,7 @@ import { findActiveOriginal, importOriginalSettingsOnce, offerChatImport, import
 
 console.log("______________________记忆插件：开始加载______________________")
 
-const VERSION = '2.2.19-v2.4'
+const VERSION = '2.2.19-v2.5'
 // v2 的版本检查地址（v2 单独一个仓库，和原版的更新提示互不干扰）
 const V2_MANIFEST_URL = 'https://raw.githubusercontent.com/155210/st-memory-enhancement-v2/refs/heads/master/manifest.json'
 
@@ -1380,9 +1380,14 @@ jQuery(async () => {
         const sheets = piece ? BASE.hashSheetsToSheets(BASE.getPieceHash(piece)) : []
         const graph = buildGraph(sheets, 30)
         if (graph.nodes.length <= 1) return EDITOR.error('角色表里还没有角色')
-        const pos = layoutGraph(graph)
+        // 画布按屏幕大小来：手机竖屏就画成竖的，1 个单位约等于 1 像素，字不会被缩得太小
+        const width = Math.max(320, Math.round(Math.min(window.innerWidth, 1000) - 48))
+        const height = Math.max(360, Math.round(window.innerHeight * 0.62))
+        const pos = layoutGraph(graph, width, height)
+        const touch = window.matchMedia?.('(pointer: coarse)')?.matches
         const id = `v2_graph_${Date.now()}`
-        const html = `<div id="${id}"><p style="margin:0 0 4px">实线：对你的关系；虚线：在大总结里一起出现过，越深越常一起。拖动圆点调整位置，拖空白处平移，滚轮缩放。</p>${renderGraphSvg(graph, pos)}</div>`
+        const hint = touch ? '拖圆点调位置，单指拖空白处平移，双指捏合缩放。' : '拖圆点调位置，拖空白处平移，滚轮缩放。'
+        const html = `<div id="${id}"><p style="margin:0 0 4px;font-size:13px">实线：对你的关系；虚线：在大总结里一起出现过，越深越常一起。${hint}</p>${renderGraphSvg(graph, pos, width, height)}</div>`
         setTimeout(() => attachGraphInteraction(document.querySelector(`#${id} svg`), graph, pos), 50)
         await EDITOR.callGenericPopup(html, EDITOR.POPUP_TYPE.TEXT, '', { wide: true, large: true })
     })
@@ -1399,7 +1404,7 @@ jQuery(async () => {
         const redraw = await EDITOR.callGenericPopup(html, EDITOR.POPUP_TYPE.CONFIRM, '', { wide: true, large: true, okButton: '让 AI 画（重画）', cancelButton: '关闭' })
         if (!redraw) return
         try {
-            EDITOR.info('正在让 AI 画当前地点…')
+            EDITOR.info('正在让 AI 画当前地点，进度看屏幕底部的面板')
             const result = await drawAiMap(true)
             if (!result) return EDITOR.error('认不出当前地点，或者上一张还在画')
             EDITOR.success(`画好了：${result.path}`)

@@ -161,6 +161,10 @@ export const defaultSettings = await switchLanguage('__defaultSettings__', {
     v2_theme: 'follow',
     // v2：地图 off 关闭 / box 程序画框图 / ai AI 画示意图
     v2_map_mode: 'box',
+    // v2：额外请求（大总结、地图、回填、融合）用哪个 API：'' 沿用「表格总结/整理」的「使用主API」，main 主API，custom 自定义API
+    v2_extra_api: '',
+    // v2：额外请求时在屏幕底部显示流式输出面板
+    v2_request_panel: true,
     // 预留
     updateIndex:3,
     /**
