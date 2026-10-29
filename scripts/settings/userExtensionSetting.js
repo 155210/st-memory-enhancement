@@ -340,6 +340,13 @@ function InitBinging() {
         USER.tableBaseSetting.v2_theme = this.value;
         applyTheme(this.value);
     });
+    // v2：额外请求用哪个 API、输出面板
+    $('#table_v2_extra_api').on('change', function () {
+        USER.tableBaseSetting.v2_extra_api = this.value;
+    });
+    $('#table_v2_request_panel_switch').change(function () {
+        USER.tableBaseSetting.v2_request_panel = this.checked;
+    });
     // v2：地图画法
     $('#table_v2_map_mode').on('change', function () {
         USER.tableBaseSetting.v2_map_mode = this.value;
@@ -646,6 +653,8 @@ export function renderSetting() {
     updateSwitch('#table_edit_switch', USER.tableBaseSetting.isAiWriteTable);
     $('#table_v2_theme').val(USER.tableBaseSetting.v2_theme || 'follow');
     $('#table_v2_map_mode').val(USER.tableBaseSetting.v2_map_mode || 'box');
+    $('#table_v2_extra_api').val(USER.tableBaseSetting.v2_extra_api || '');
+    updateSwitch('#table_v2_request_panel_switch', USER.tableBaseSetting.v2_request_panel !== false);
     updateSwitch('#table_v2_tier_switch', USER.tableBaseSetting.v2_tier_enabled !== false);
     $('#table_v2_tier_main_count').val(USER.tableBaseSetting.v2_tier_main_count ?? 10);
     updateSwitch('#table_v2_reminders_switch', USER.tableBaseSetting.v2_reminders_enabled !== false);

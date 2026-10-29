@@ -72,7 +72,7 @@ export async function runBackfill(plan, applyEdits, { onProgress = () => {}, sho
         const from = batch.floors[0];
         const system = replaceUserTag(USER.tableBaseSetting.message_template.replace('{{tableData}}', tableText)) + BACKFILL_NOTE(from, batch.target);
         const user = batch.floors.map(i => `[第${i}层·${chat[i].is_user ? '用户' : 'AI'}]\n${stripText(chat[i].mes)}`).join('\n\n');
-        const raw = await summaryHooks.ask(system, user);
+        const raw = await summaryHooks.ask(system, user, `回填第 ${from}–${batch.target} 层`);
         // 等回复期间表格实例可能被换成别的楼层，重新载入
         const sheets = load();
         result.edits += applyEdits(raw, sheets.filter(sheet => sheet.enable));

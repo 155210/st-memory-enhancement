@@ -70,7 +70,7 @@ const FUSION_SYSTEM = (level) => `你是小说记录员。把用户给的几段�
 export async function generateFusion(floors, level = '大') {
     const chat = USER.getContext().chat || [];
     const text = floors.map(i => `[第${i}层·${chat[i].is_user ? '用户' : 'AI'}]\n${stripText(chat[i].mes)}`).join('\n\n');
-    const raw = await summaryHooks.ask(FUSION_SYSTEM(level), text);
+    const raw = await summaryHooks.ask(FUSION_SYSTEM(level), text, `融合 ${floors.length} 层写成${level}总结`);
     const { summary } = parseSummaryOutput(raw);
     if (!summary) throw new Error('AI 没有返回总结');
     return summary;
