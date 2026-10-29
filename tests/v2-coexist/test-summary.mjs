@@ -173,3 +173,39 @@ assert.equal(dump(t.by('总结归档')).length, 8);
 assert.equal(dump(t.by('总结归档'))[0][2], '迁移前');
 assert.equal(dump(load(chat[g1]).by('大总结'))[0][1], '', '老楼层的快照不变');
 console.log('✓ 老档迁移：补层级和楼层范围、连续压缩、老楼层不变');
+
+// 撤回：迁移那次的压缩可以整层撤回
+assert.equal(SM.summaryUndoList().length, 1);
+let undone = await SM.undoLastSummary();
+assert.ok(undone.ok, undone.message);
+assert.match(undone.message, /整层恢复/);
+t = load(chat[g2]);
+assert.deepEqual(dump(t.by('大总结')).map(r => r[1]), Array(7).fill('大'), '压缩撤回，7 条大总结回来');
+assert.equal(dump(t.by('总结归档')).length, 0, '归档也回到原样');
+assert.equal((await SM.undoLastSummary()).ok, false, '撤完就没有了');
+
+// 写大总结之后又聊了一层：在最新一层恢复，事件放回去，新事件保留，缓存清掉
+Object.assign(USER.tableBaseSetting, { v2_summary_batch: 50 });
+const h1 = pushFloor('事件来了');
+addEvents(chat[g2], chat[h1], [['甲事', '2025-07-01', '家', ''], ['乙事', '2025-07-01', '家', ''], ['丙事', '2025-07-01', '家', '']]);
+const askedBefore = asked.length;
+log = await SM.runSummaryPipeline(chat[h1], h1);
+assert.equal(log.length, 1, log.join());
+assert.equal(dump(load(chat[h1]).by('大总结')).length, 8);
+const h2 = pushFloor('之后又聊');
+addEvents(chat[h1], chat[h2], [['丁事', '2025-07-02', '家', '']]);
+undone = await SM.undoLastSummary();
+assert.ok(undone.ok, undone.message);
+assert.match(undone.message, /最新一层/);
+t = load(chat[h2]);
+assert.equal(dump(t.by('大总结')).length, 7, '最新一层的大总结回到写之前');
+assert.deepEqual(dump(t.by('事件历史')).map(r => r[0]), ['甲事', '乙事', '丙事', '丁事'], '事件放回，之后的新事件保留');
+assert.equal(dump(load(chat[h1]).by('大总结')).length, 8, '老楼层的快照不动');
+log = await SM.runSummaryPipeline(chat[h2], h2);
+assert.ok(asked.length > askedBefore + 1, '撤回后重新请求，不用缓存');
+console.log('✓ 撤回大总结：整层恢复、之后又聊了也能撤、清缓存');
+
+// 输出解析：取最后一个 summary，没有标签时去掉其他标签块
+assert.equal(SM.parseSummaryOutput('格式：<summary>大总结</summary>\n好的\n<summary>真正的内容</summary>').summary, '真正的内容');
+assert.equal(SM.parseSummaryOutput('<think>想</think><status>无关</status>正文内容').summary, '正文内容');
+console.log('✓ 大总结输出解析更稳');
