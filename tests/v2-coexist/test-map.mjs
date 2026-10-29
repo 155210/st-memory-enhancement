@@ -34,6 +34,8 @@ assert.deepEqual(LT.parseTimeTag('崇德5年3月19日-申时-沈府东院书房-
 assert.equal(LT.parseTimeTag('崇德五年三月十九 午后 京城>西市 小雨').place, '京城>西市', '中文数字、空格分隔');
 assert.equal(LT.parseTimeTag('崇德5年3月19日-辰时三刻-点心铺-晴').place, '点心铺');
 assert.equal(LT.parseTimeTag('『崇德5年3月19日』').place, '', '只有日期时不把日期当地点');
+assert.deepEqual(LT.parseTimeTag('『崇德5年3月19日-星期日–15,20-天京·东市·锦绣坊后巷-晴/微风』'), { date: '崇德5年3月19日', time: '15,20', place: '天京·东市·锦绣坊后巷', weather: '晴/微风' }, '逗号分隔的时间');
+assert.deepEqual(LT.splitPlace('天京·东市·锦绣坊后巷'), ['天京', '东市', '锦绣坊后巷'], '· 分层');
 assert.equal(LT.parseTimeTag('剧情走向').place, '', '没有日期和时间的『』不算时间标签');
 assert.deepEqual(LT.splitPlace('城南安置房7栋6楼走廊'), ['城南安置房', '7栋', '6楼', '走廊']);
 assert.deepEqual(LT.splitPlace('异世界>王都>酒馆'), ['异世界', '王都', '酒馆']);
