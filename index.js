@@ -8,6 +8,7 @@ import { downloadDiagnostics, installErrorCapture } from './core/diagnostics.js'
 import { attachGraphInteraction, buildGraph, layoutGraph, renderGraphSvg } from './core/relationGraph.js';
 import { applyTheme } from './core/themes.js';
 import { buildLocationTree } from './core/locationTree.js';
+import { openRequestPanel } from './core/extraRequest.js';
 import { attachMapZoom, drawAiMap, mapMode, mapPanelHtml, maybeDrawOnNewPlace, presentNames } from './core/worldMap.js';
 import { applyConditionalBlocks, dueReminderText, lastInjection, recordInjection } from './core/promptExtras.js';
 import { annotateRelativeDates, buildRecallBlock, currentStoryDate, isArchiveSheet, migrateOldSummaries, runSummaryAfterFill, shouldIgnoreAiEdit, summaryConfig } from './core/summaryManager.js';
@@ -33,7 +34,7 @@ import { findActiveOriginal, importOriginalSettingsOnce, offerChatImport, import
 
 console.log("______________________记忆插件：开始加载______________________")
 
-const VERSION = '2.2.19-v2.10'
+const VERSION = '2.2.19-v2.11'
 // v2 的版本检查地址（v2 单独一个仓库，和原版的更新提示互不干扰）
 const V2_MANIFEST_URL = 'https://raw.githubusercontent.com/155210/st-memory-enhancement-v2/refs/heads/master/manifest.json'
 
@@ -1366,6 +1367,9 @@ jQuery(async () => {
     })
 
     // O11：导出诊断
+    $(document).on('click', '#table_v2_request_panel_button', function () {
+        openRequestPanel()
+    })
     $(document).on('click', '#table_v2_diagnostics_button', function () {
         try {
             const data = downloadDiagnostics(VERSION)
@@ -1387,7 +1391,7 @@ jQuery(async () => {
         const pos = layoutGraph(graph, width, height)
         const touch = window.matchMedia?.('(pointer: coarse)')?.matches
         const id = `v2_graph_${Date.now()}`
-        const hint = touch ? '拖圆点调位置，单指拖空白处平移，双指捏合缩放。' : '拖圆点调位置，拖空白处平移，滚轮缩放。'
+        const hint = (graph.nodes.length > 10 ? '点一个人只看他的关系和关系词，再点一次复原。' : '') + (touch ? '拖圆点调位置，单指拖空白处平移，双指捏合缩放。' : '拖圆点调位置，拖空白处平移，滚轮缩放。')
         const html = `<div id="${id}"><p style="margin:0 0 4px;font-size:13px">灰色实线：对你的关系；彩色实线：角色关系表里角色之间的关系；虚线：在大总结里一起出现过，越深越常一起。${hint}</p>${renderGraphSvg(graph, pos, width, height)}</div>`
         setTimeout(() => attachGraphInteraction(document.querySelector(`#${id} svg`), graph, pos), 50)
         await EDITOR.callGenericPopup(html, EDITOR.POPUP_TYPE.TEXT, '', { wide: true, large: true })

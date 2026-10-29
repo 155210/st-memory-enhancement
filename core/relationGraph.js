@@ -110,7 +110,8 @@ export function layoutGraph(graph, width = 800, height = 600, iterations = 300) 
         const angle = (2 * Math.PI * i) / Math.max(1, nodes.length - 1);
         pos.set(n.id, { x: cx + Math.cos(angle) * width * 0.35, y: cy + Math.sin(angle) * height * 0.35 });
     });
-    const k = Math.sqrt((width * height) / Math.max(1, nodes.length)) * 0.7;
+    const k = Math.sqrt((width * height) / Math.max(1, nodes.length)) * 0.9;
+    const userId = nodes.find(n => n.isUser)?.id;
     let temp = width / 10;
     for (let it = 0; it < iterations; it++) {
         const disp = new Map(nodes.map(n => [n.id, { x: 0, y: 0 }]));
@@ -128,7 +129,8 @@ export function layoutGraph(graph, width = 800, height = 600, iterations = 300) 
             if (!a || !b) continue;
             let dx = a.x - b.x, dy = a.y - b.y;
             const d = Math.max(0.01, Math.hypot(dx, dy));
-            const f = ((d * d) / k) * (e.kind === 'together' ? 0.3 : 1);
+            // 人人都连着你，你的线拉得太紧会全挤在中间，所以放松一些
+            const f = ((d * d) / k) * (e.kind === 'together' ? 0.3 : e.a === userId || e.b === userId ? 0.35 : 1);
             dx = (dx / d) * f; dy = (dy / d) * f;
             disp.get(e.a).x -= dx; disp.get(e.a).y -= dy;
             disp.get(e.b).x += dx; disp.get(e.b).y += dy;
@@ -178,8 +180,10 @@ export function renderGraphSvg(graph, pos, width = 800, height = 600) {
         const r = n.isUser ? base * 1.8 : base + base * (n.weight / maxWeight);
         return `<g class="v2g-node" data-id="${esc(n.id)}" transform="translate(${p.x},${p.y})" style="cursor:grab"><circle r="${r.toFixed(1)}" fill="${n.isUser ? 'var(--v2g-user)' : 'var(--v2g-node)'}" stroke="var(--v2g-line)"/><text y="${(r + 13).toFixed(1)}" text-anchor="middle" class="v2g-name">${esc(n.label)}</text></g>`;
     }).join('');
-    return `<svg class="v2-relation-graph" viewBox="0 0 ${width} ${height}" width="100%" style="height:auto;max-height:75vh;touch-action:none;user-select:none;-webkit-user-select:none">
-<style>.v2-relation-graph{--v2g-line:var(--SmartThemeBodyColor,#888);--v2g-node:var(--SmartThemeQuoteColor,#6a9);--v2g-user:var(--SmartThemeEmColor,#c96);--v2g-pair:var(--SmartThemeQuoteColor,#6a9)}.v2g-label{font-size:11px;fill:var(--SmartThemeBodyColor,#ccc);paint-order:stroke;stroke:var(--SmartThemeBlurTintColor,#1a1a2e);stroke-width:3px;stroke-linejoin:round}.v2g-name{font-size:13px;fill:var(--SmartThemeBodyColor,#eee)}</style>
+    // 人少时关系词全显示；人多时先藏起来，点一个人只显示他的关系，免得字叠成一团
+    const showAll = graph.nodes.length <= 10 ? ' v2g-show-all' : '';
+    return `<svg class="v2-relation-graph${showAll}" viewBox="0 0 ${width} ${height}" width="100%" style="height:auto;max-height:75vh;touch-action:none;user-select:none;-webkit-user-select:none">
+<style>.v2-relation-graph{--v2g-line:var(--SmartThemeBodyColor,#888);--v2g-node:var(--SmartThemeQuoteColor,#6a9);--v2g-user:var(--SmartThemeEmColor,#c96);--v2g-pair:var(--SmartThemeQuoteColor,#6a9)}.v2g-label{font-size:11px;fill:var(--SmartThemeBodyColor,#ccc);paint-order:stroke;stroke:var(--SmartThemeBlurTintColor,#1a1a2e);stroke-width:3px;stroke-linejoin:round}.v2g-name{font-size:13px;fill:var(--SmartThemeBodyColor,#eee);paint-order:stroke;stroke:var(--SmartThemeBlurTintColor,#1a1a2e);stroke-width:3px;stroke-linejoin:round}.v2-relation-graph:not(.v2g-show-all):not(.v2g-focus) .v2g-label{display:none}.v2g-focus .v2g-edge:not(.v2g-on) .v2g-label{display:none}.v2g-focus .v2g-edge:not(.v2g-on),.v2g-focus .v2g-node:not(.v2g-on){opacity:.12}.v2g-focus .v2g-edge.v2g-on line{stroke-width:2.5}</style>
 <g class="v2g-viewport">${lines}${circles}</g></svg>`;
 }
 
@@ -236,8 +240,24 @@ export function attachGraphInteraction(svg, graph, pos) {
         }
         const node = event.target.closest('.v2g-node');
         drag = node ? { id: node.dataset.id, node } : { pan: true, x: p.x - tx, y: p.y - ty };
+        drag.start = p;
+        drag.moved = false;
     });
+    // 点一个人：只亮出和他有关的线和关系词；再点一次或点空白处复原
+    let focused = null;
+    const focus = (id) => {
+        focused = id && id !== focused ? id : null;
+        svg.classList.toggle('v2g-focus', !!focused);
+        const on = new Set(focused ? [focused] : []);
+        svg.querySelectorAll('.v2g-edge').forEach(g => {
+            const hit = !!focused && (g.dataset.a === focused || g.dataset.b === focused);
+            g.classList.toggle('v2g-on', hit);
+            if (hit) { on.add(g.dataset.a); on.add(g.dataset.b); }
+        });
+        svg.querySelectorAll('.v2g-node').forEach(g => g.classList.toggle('v2g-on', on.has(g.dataset.id)));
+    };
     const release = (event) => {
+        if (drag && !drag.moved && pointers.size === 1 && event.type === 'pointerup') focus(drag.id || null);
         pointers.delete(event.pointerId);
         if (pointers.size < 2) pinch = null;
         if (!pointers.size) drag = null;
@@ -253,6 +273,8 @@ export function attachGraphInteraction(svg, graph, pos) {
         }
         if (!drag) return;
         const p = toSvg(event);
+        if (!drag.moved && Math.hypot(p.x - drag.start.x, p.y - drag.start.y) < 5) return;
+        drag.moved = true;
         if (drag.pan) { tx = p.x - drag.x; ty = p.y - drag.y; return apply(); }
         const point = pos.get(drag.id);
         point.x = (p.x - tx) / scale; point.y = (p.y - ty) / scale;
