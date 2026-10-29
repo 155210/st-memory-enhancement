@@ -10,8 +10,11 @@ import { readRows } from './summaryManager.js';
  */
 
 const TAG = /『([^』]*)』/g;
-const TIME = /^\d{1,2}[:：]\d{2}$/;
-const DATE = /\d{4}年\d{1,2}月\d{1,2}日|\d{4}[-/.]\d{1,2}[-/.]\d{1,2}/;
+const NUM = '\\d〇零一二三四五六七八九十百千廿卅两元正冬腊初';
+// 年号纪年也认：「崇德5年3月19日」「崇德五年三月十九」「3月19日」
+const DATE = new RegExp(`[${NUM}]+年(?:[${NUM}]+月)?(?:[${NUM}]+日?)?|[${NUM}]+月[${NUM}]+日?|\\d{4}[-/.]\\d{1,2}[-/.]\\d{1,2}`);
+const PERIOD = '凌晨|清晨|早晨|早上|上午|中午|正午|午后|下午|傍晚|黄昏|晚上|夜晚|入夜|深夜|午夜|半夜|夜里';
+const TIME = new RegExp(`^(?:\\d{1,2}[:：]\\d{2}(?:[:：]\\d{2})?|(?:${PERIOD})?[${NUM}]+[点时](?:半|[${NUM}]+分?)?|[子丑寅卯辰巳午未申酉戌亥]时.{0,3}|(?:${PERIOD}).{0,2})$`);
 const WEEK = /^(星期|周|礼拜)[一二三四五六日天]$/;
 // 由大到小的地名后缀，切开后每段是一层
 const MARKERS = ['自治区', '特别行政区', '省', '市', '区', '县', '镇', '乡', '村', '街道', '大街', '街', '路', '巷', '胡同', '小区', '花园', '公寓', '安置房', '新村', '大学', '学院', '中学', '小学', '学校', '医院', '公司', '大厦', '广场', '公园', '商场', '酒店', '宾馆', '别墅', '庄园', '宫', '城', '府', '号楼', '栋', '幢', '座', '单元', '楼', '层', '室', '号'];
@@ -19,20 +22,23 @@ const MARKER_RE = new RegExp(`(.*?(?:${MARKERS.sort((a, b) => b.length - a.lengt
 const EXPLICIT = /\s*[>＞/／→]\s*/;
 
 const clean = (v) => String(v ?? '').trim();
+const isDate = (p) => DATE.test(p) && p.replace(DATE, '').replace(/[\s,，]/g, '').length <= 4;
 
-/** 拆一个时间标签 → { date, time, place }，拆不出的段为空 */
+/** 拆一个时间标签 → { date, time, place }，拆不出的段为空；没有日期也没有时间的『』不算时间标签 */
 export function parseTimeTag(tag) {
-    const parts = clean(tag).replace(/^『|』$/g, '').split(/\s*[-–—]\s*/).map(clean).filter(Boolean);
+    const parts = clean(tag).replace(/^『|』$/g, '').split(/\s*[-–—|｜]\s*|\s+/).map(clean).filter(Boolean);
     const result = { date: '', time: '', place: '', weather: '' };
+    result.date = parts.find(isDate) || '';
     const timeAt = parts.findIndex(p => TIME.test(p));
-    result.date = parts.find(p => DATE.test(p)) || '';
-    if (timeAt !== -1) {
-        result.time = parts[timeAt];
-        result.place = parts[timeAt + 1] || '';
-        result.weather = parts[timeAt + 2] || '';
-    } else {
-        // 没有时间段：去掉日期、星期，剩下第一段当地点
-        result.place = parts.find(p => !DATE.test(p) && !WEEK.test(p) && !TIME.test(p)) || '';
+    if (timeAt !== -1) result.time = parts[timeAt];
+    if (!result.date && !result.time) return result;
+    // 地点：时间后面第一段（没有时间就是日期后面第一段），跳过日期、星期、时间
+    const after = Math.max(timeAt, parts.findIndex(isDate));
+    const rest = (i) => i > after && !isDate(parts[i]) && !WEEK.test(parts[i]) && !TIME.test(parts[i]);
+    const placeAt = parts.findIndex((_, i) => rest(i));
+    if (placeAt !== -1) {
+        result.place = parts[placeAt];
+        result.weather = parts.slice(placeAt + 1).join(' ');
     }
     return result;
 }

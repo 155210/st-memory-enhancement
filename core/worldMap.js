@@ -66,9 +66,86 @@ export function renderBoxMap(tree, present = [], width = 800, height = 560) {
         });
     };
     draw(top, 4, 4, width - 8, height - 8, 0);
-    return `<svg class="v2-world-map" viewBox="0 0 ${width} ${height}" width="100%" style="max-height:70vh">
+    return `<svg class="v2-world-map" viewBox="0 0 ${width} ${height}" width="100%" style="${MAP_STYLE}">
 <style>.v2-world-map{--v2m-line:var(--SmartThemeBodyColor,#888);--v2m-box:transparent;--v2m-path:color-mix(in srgb,var(--SmartThemeQuoteColor,#6a9) 18%,transparent);--v2m-current:color-mix(in srgb,var(--SmartThemeEmColor,#c96) 35%,transparent)}.v2m-name{font-size:13px;fill:var(--SmartThemeBodyColor,#ddd)}.v2m-people{font-size:12px;fill:var(--SmartThemeEmColor,#c96)}</style>
-${parts.join('\n')}</svg>`;
+<g class="v2m-viewport">${parts.join('\n')}</g></svg>`;
+}
+
+const MAP_STYLE = 'height:auto;max-height:70vh;touch-action:none;user-select:none;-webkit-user-select:none';
+
+/** AI 画的图：去掉写死的宽高，补上 viewBox，套上可缩放的一层，手机上按屏幕宽显示 */
+export function fitSvg(svg) {
+    const open = svg.match(/<svg\b[^>]*>/i);
+    if (!open) return svg;
+    let tag = open[0];
+    const num = (name) => Number((tag.match(new RegExp(`\\s${name}\\s*=\\s*["']?([\\d.]+)`, 'i')) || [])[1]) || 0;
+    if (!/viewBox\s*=/i.test(tag)) tag = tag.replace(/<svg\b/i, `<svg viewBox="0 0 ${num('width') || 600} ${num('height') || 400}"`);
+    tag = tag.replace(/\s(width|height|style)\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+        .replace(/<svg\b/i, `<svg width="100%" style="${MAP_STYLE}"`);
+    if (!/class\s*=/.test(tag)) tag = tag.replace(/<svg\b/i, '<svg class="v2-ai-map"');
+    const body = svg.slice(open.index + open[0].length).replace(/<\/svg>\s*$/i, '');
+    if (/class="v2m-viewport"/.test(body)) return tag + body + '</svg>';
+    return `${tag}<g class="v2m-viewport">${body}</g></svg>`;
+}
+
+/**
+ * 地图的拖动和缩放：单指/鼠标拖动平移，双指捏合或滚轮缩放
+ * @param {SVGSVGElement} svg 里面要有 .v2m-viewport
+ */
+export function attachMapZoom(svg) {
+    const viewport = svg?.querySelector('.v2m-viewport');
+    if (!viewport) return;
+    let scale = 1, tx = 0, ty = 0;
+    const apply = () => viewport.setAttribute('transform', `translate(${tx},${ty}) scale(${scale})`);
+    const toSvg = (event) => {
+        const rect = svg.getBoundingClientRect();
+        const vb = svg.viewBox.baseVal;
+        return { x: vb.x + ((event.clientX - rect.left) / rect.width) * vb.width, y: vb.y + ((event.clientY - rect.top) / rect.height) * vb.height };
+    };
+    const zoomAt = (p, next) => {
+        next = Math.min(6, Math.max(0.5, next));
+        tx = p.x - ((p.x - tx) * next) / scale; ty = p.y - ((p.y - ty) * next) / scale;
+        scale = next;
+        apply();
+    };
+    const pointers = new Map();
+    let pan = null, pinch = null;
+    const pinchState = () => {
+        const [a, b] = [...pointers.values()];
+        return { dist: Math.hypot(a.x - b.x, a.y - b.y), mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } };
+    };
+    svg.addEventListener('pointerdown', (event) => {
+        const p = toSvg(event);
+        pointers.set(event.pointerId, p);
+        svg.setPointerCapture(event.pointerId);
+        if (pointers.size === 2) { pan = null; pinch = { ...pinchState(), scale }; return; }
+        pan = { x: p.x - tx, y: p.y - ty };
+    });
+    const release = (event) => {
+        pointers.delete(event.pointerId);
+        if (pointers.size < 2) pinch = null;
+        if (!pointers.size) pan = null;
+    };
+    svg.addEventListener('pointerup', release);
+    svg.addEventListener('pointercancel', release);
+    svg.addEventListener('pointermove', (event) => {
+        if (!pointers.has(event.pointerId)) return;
+        pointers.set(event.pointerId, toSvg(event));
+        if (pinch && pointers.size === 2) {
+            const now = pinchState();
+            if (pinch.dist > 0) zoomAt(now.mid, pinch.scale * (now.dist / pinch.dist));
+            return;
+        }
+        if (!pan) return;
+        const p = toSvg(event);
+        tx = p.x - pan.x; ty = p.y - pan.y;
+        apply();
+    });
+    svg.addEventListener('wheel', (event) => {
+        event.preventDefault();
+        zoomAt(toSvg(event), scale * (event.deltaY < 0 ? 1.1 : 0.9));
+    }, { passive: false });
+    svg.addEventListener('dblclick', () => { scale = 1; tx = 0; ty = 0; apply(); });
 }
 
 /** 只留安全的 SVG：去掉脚本、事件属性、外链 */
@@ -86,10 +163,17 @@ export function sanitizeSvg(raw) {
 
 const AI_MAP_SYSTEM = `你是地图绘制员。根据用户给的地点和最近剧情，画当前地点的平面示意图。
 要求：
-1. 只输出一段 SVG 代码：<svg viewBox="0 0 600 400" xmlns="http://www.w3.org/2000/svg">……</svg>，不要解释。
+1. 只输出一段 SVG 代码：<svg viewBox="0 0 {W} {H}" xmlns="http://www.w3.org/2000/svg">……</svg>，不要解释。
 2. 用方框代表房间、建筑或区域，用线或箭头表示通道和出入口，中文标注名字（font-size 12 到 16）。
 3. 用小圆点加名字标出在场人物的位置，<user> 用不同颜色。
 4. 只画剧情里出现过或合理推断的结构，不要写实细节，不要图片、脚本和外链。`;
+
+/** 画布大小跟屏幕走：手机竖屏就画成竖的，1 个单位约等于 1 像素，字不会被缩得太小 */
+export function mapSize() {
+    const w = globalThis.innerWidth || 0, h = globalThis.innerHeight || 0;
+    if (!w || !h) return { width: 600, height: 400 };
+    return { width: Math.max(320, Math.round(Math.min(w, 1000) - 48)), height: Math.max(360, Math.round(h * 0.6)) };
+}
 
 /** 当前地点的缓存地图 */
 export function cachedMap(path) {
@@ -103,7 +187,7 @@ let drawing = false;
  * @param {boolean} force 重新画
  * @returns {Promise<{ path: string, svg: string, cached: boolean } | null>}
  */
-export async function drawAiMap(force = false) {
+export async function drawAiMap(force = false, size = mapSize()) {
     const { piece } = BASE.getLastSheetsPiece();
     const sheets = piece ? BASE.hashSheetsToSheets(BASE.getPieceHash(piece)) : [];
     const tree = buildLocationTree(USER.getContext().chat || [], sheets);
@@ -123,7 +207,9 @@ export async function drawAiMap(force = false) {
             `在场人物：${presentNames(sheets).join('、') || '不详'}`,
             `最近剧情：\n${recentText(2).replace(/<tableEdit>[\s\S]*?<\/tableEdit>/g, '').slice(-3000)}`,
         ].filter(Boolean).join('\n');
-        const svg = sanitizeSvg(await summaryHooks.ask(AI_MAP_SYSTEM, prompt, `画地图：${path}`));
+        const system = AI_MAP_SYSTEM.replace('{W}', size.width).replace('{H}', size.height)
+            + (size.height > size.width ? '\n5. 画布是竖的（给手机看），房间从上往下排，字不要小于 14。' : '');
+        const svg = sanitizeSvg(await summaryHooks.ask(system, prompt, `画地图：${path}`));
         if (!svg) throw new Error('AI 没有返回 SVG');
         const meta = USER.getContext().chatMetadata;
         meta[V2.mapCache] ||= {};
@@ -154,10 +240,13 @@ export function mapPanelHtml(tree, present, mode = mapMode()) {
     const path = currentPlacePath(tree);
     const header = `<p style="margin:0 0 6px">当前地点：<b>${esc(path || '不详')}</b>${present.length ? `　在场：${esc(present.join('、'))}` : ''}</p>`;
     let body = '';
-    if (mode === 'box') body = renderBoxMap(tree, present) || '<p>还没有地点记录</p>';
+    if (mode === 'box') {
+        const { width, height } = mapSize();
+        body = renderBoxMap(tree, present, width, height) || '<p>还没有地点记录</p>';
+    }
     if (mode === 'ai') {
         const cached = path ? cachedMap(path) : null;
-        body = cached ? cached.svg : '<p>这个地点还没有 AI 画的图，点下面的「让 AI 画」。</p>';
+        body = cached ? fitSvg(cached.svg) : '<p>这个地点还没有 AI 画的图，点下面的「让 AI 画」。</p>';
     }
     const treeText = renderTreeText(tree);
     return `${header}${body}<details><summary>地点树</summary><pre style="white-space:pre-wrap;text-align:left">${esc(treeText || '还没有地点记录')}</pre></details>`;

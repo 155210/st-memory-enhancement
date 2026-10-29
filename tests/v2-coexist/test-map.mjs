@@ -30,6 +30,11 @@ const { V2 } = await import(REPO + '/core/v2keys.js');
 
 assert.deepEqual(LT.parseTimeTag('『2025年6月15日-星期日–18:15-城南安置房7栋6楼走廊-闷热·天色暗沉』'), { date: '2025年6月15日', time: '18:15', place: '城南安置房7栋6楼走廊', weather: '闷热·天色暗沉' });
 assert.equal(LT.parseTimeTag('2025年6月15日–星期日-学校天台').place, '学校天台', '没有时间段也认');
+assert.deepEqual(LT.parseTimeTag('崇德5年3月19日-申时-沈府东院书房-晴'), { date: '崇德5年3月19日', time: '申时', place: '沈府东院书房', weather: '晴' }, '年号纪年和时辰');
+assert.equal(LT.parseTimeTag('崇德五年三月十九 午后 京城>西市 小雨').place, '京城>西市', '中文数字、空格分隔');
+assert.equal(LT.parseTimeTag('崇德5年3月19日-辰时三刻-点心铺-晴').place, '点心铺');
+assert.equal(LT.parseTimeTag('『崇德5年3月19日』').place, '', '只有日期时不把日期当地点');
+assert.equal(LT.parseTimeTag('剧情走向').place, '', '没有日期和时间的『』不算时间标签');
 assert.deepEqual(LT.splitPlace('城南安置房7栋6楼走廊'), ['城南安置房', '7栋', '6楼', '走廊']);
 assert.deepEqual(LT.splitPlace('异世界>王都>酒馆'), ['异世界', '王都', '酒馆']);
 assert.deepEqual(LT.splitPlace('学校天台'), ['学校', '天台']);
@@ -106,3 +111,13 @@ const tiers = computeTiers(sheets);
 assert.equal(rowTier('陈默', tiers), 'brief');
 assert.equal(rowTier('苏晴', tiers), 'roster');
 console.log('✓ 按地名召回旧事、住所同区域的人发简要');
+
+// 手机适配：AI 图去掉写死的宽高、补 viewBox、套可缩放的一层
+const fitted = WM.fitSvg('<svg width="600" height="400" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="1" width="5" height="5"/></svg>');
+assert.match(fitted, /viewBox="0 0 600 400"/);
+assert.match(fitted, /width="100%"/);
+assert.doesNotMatch(fitted, /height="400"/);
+assert.match(fitted, /<g class="v2m-viewport"><rect/);
+assert.match(WM.renderBoxMap(LT.buildLocationTree(chat, sheets), [], 360, 500), /viewBox="0 0 360 500"[\s\S]*v2m-viewport/, '框图按给的尺寸画、能缩放');
+console.log('map mobile ok');
+
