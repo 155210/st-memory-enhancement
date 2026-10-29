@@ -491,7 +491,11 @@ function appendPast(sheets, past) {
 /** 最近几层正文 + 本轮输入 */
 export function recentText(depth) {
     const chat = USER.getContext().chat || [];
-    return chat.slice(-depth * 2).map(m => m?.mes || '').join('\n');
+    // 去掉填表指令和思考：<tableEdit> 里会改到很多不在场的人，算进去的话谁都成了「在场」
+    return chat.slice(-depth * 2).map(m => String(m?.mes || '')
+        .replace(/<tableEdit>[\s\S]*?<\/tableEdit>/gi, '')
+        .replace(/<think(ing)?>[\s\S]*?<\/think(ing)?>/gi, '')
+        .replace(/<!--[\s\S]*?-->/g, '')).join('\n');
 }
 
 /**
