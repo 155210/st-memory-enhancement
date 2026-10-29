@@ -11,7 +11,7 @@ import { buildLocationTree } from './core/locationTree.js';
 import { openRequestPanel } from './core/extraRequest.js';
 import { attachMapZoom, drawAiMap, mapMode, mapPanelHtml, maybeDrawOnNewPlace, presentNames } from './core/worldMap.js';
 import { applyConditionalBlocks, dueReminderText, lastInjection, recordInjection } from './core/promptExtras.js';
-import { annotateRelativeDates, buildRecallBlock, currentStoryDate, isArchiveSheet, migrateOldSummaries, runSummaryAfterFill, shouldIgnoreAiEdit, summaryConfig } from './core/summaryManager.js';
+import { annotateRelativeDates, buildRecallBlock, currentStoryDate, isArchiveSheet, migrateOldSummaries, runSummaryAfterFill, shouldIgnoreAiEdit, summaryConfig, summaryUndoList, undoLastSummary } from './core/summaryManager.js';
 import { APP, BASE, DERIVED, EDITOR, SYSTEM, USER } from './core/manager.js';
 import { openTableRendererPopup, updateSystemMessageTableStatus } from "./scripts/renderer/tablePushToChat.js";
 import { loadSettings } from "./scripts/settings/userExtensionSetting.js";
@@ -34,7 +34,7 @@ import { findActiveOriginal, importOriginalSettingsOnce, offerChatImport, import
 
 console.log("______________________记忆插件：开始加载______________________")
 
-const VERSION = '2.2.19-v2.13'
+const VERSION = '2.2.19-v2.14'
 // v2 的版本检查地址（v2 单独一个仓库，和原版的更新提示互不干扰）
 const V2_MANIFEST_URL = 'https://raw.githubusercontent.com/155210/st-memory-enhancement-v2/refs/heads/master/manifest.json'
 
@@ -1367,6 +1367,19 @@ jQuery(async () => {
     })
 
     // O11：导出诊断
+    // 撤回程序最近一次写的大总结 / 压缩
+    $(document).on('click', '#table_v2_undo_summary_button', async function () {
+        const list = summaryUndoList()
+        const last = list[list.length - 1]
+        if (!last) return EDITOR.error('没有可以撤回的大总结（只能撤回更新到这个版本之后写的）')
+        const esc = (text) => String(text ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c])
+        const ok = await EDITOR.callGenericPopup(`撤回第 ${last.floor} 层（${new Date(last.at).toLocaleString()}）做的：<br><br>${(last.log || []).map(esc).join('<br>') || '写大总结'}<br><br>大总结表和归档表回到写之前的样子，写进总结的事件放回事件历史；这次的请求缓存也清掉，下次会重新请求。还能再撤 ${list.length - 1} 次。`, EDITOR.POPUP_TYPE.CONFIRM, '撤回大总结', { okButton: '撤回', cancelButton: '取消' })
+        if (!ok) return
+        const result = await undoLastSummary()
+        if (!result.ok) return EDITOR.error(result.message)
+        await updateSheetsView()
+        EDITOR.success(result.message)
+    })
     $(document).on('click', '#table_v2_request_panel_button', function () {
         openRequestPanel()
     })

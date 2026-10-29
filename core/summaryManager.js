@@ -156,8 +156,10 @@ async function askModel(system, user, title) {
 
 /** 从模型输出里取 <summary> 和 <past>（没有标签就整段当总结） */
 export function parseSummaryOutput(text) {
-    const pick = (tag) => (text.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`)) || [])[1];
-    const summary = clean(pick('summary') ?? text.replace(/<think(ing)?>[\s\S]*?<\/think(ing)?>/g, '')).replace(/\n+/g, ' ');
+    text = String(text ?? '').replace(/<think(ing)?>[\s\S]*?<\/think(ing)?>/gi, '');
+    // 取最后一个 <summary>（有的模型会先复述一遍格式）；没有标签时去掉其他标签块，只留正文
+    const pick = (tag) => [...text.matchAll(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, 'g'))].pop()?.[1];
+    const summary = clean(pick('summary') ?? text.replace(/<past>[\s\S]*?<\/past>/g, '').replace(/<(\w+)[^>]*>[\s\S]*?<\/\1>/g, '').replace(/<[^>]+>/g, '')).replace(/\n+/g, ' ');
     const past = clean(pick('past') ?? '').split('\n').map(clean).filter(Boolean).map(line => {
         const m = line.match(/^(.+?)[：:]\s*(.+)$/);
         return m ? { name: clean(m[1]), text: clean(m[2]) } : null;
@@ -213,7 +215,18 @@ export async function runSummaryPipeline(piece, floor, { sourcePiece = piece, co
             archive: findSheet(sheets, config.archiveTable),
         };
     };
+    // 撤回用：第一次改表前记下这层原来的表格快照
+    let undo = null;
     const commit = (sheets) => {
+        if (!undo) {
+            undo = {
+                floor,
+                at: new Date().toISOString(),
+                own: piece[V2.pieceHash] ? copyHash(piece[V2.pieceHash]) : null,
+                before: copyHash(BASE.getPieceHash(source) || {}),
+                summaryFloors: [...(USER.getContext().chatMetadata?.[V2.summaryState]?.summaryFloors || [])],
+            };
+        }
         sheets.forEach(sheet => sheet.save(piece, true));
         source = piece;
     };
@@ -283,11 +296,76 @@ export async function runSummaryPipeline(piece, floor, { sourcePiece = piece, co
             log.push(`压缩没做完，下次再试：${error.message}`);
         }
 
+        if (undo) {
+            const meta = USER.getContext().chatMetadata;
+            undo.after = copyHash(piece[V2.pieceHash] || {});
+            undo.log = log.slice();
+            meta[V2.summaryUndo] = [...(meta[V2.summaryUndo] || []), undo].slice(-3);   // 最多留 3 次，免得聊天文件变大
+        }
         if (log.length) await USER.saveChat();
         return log;
     } finally {
         running = false;
     }
+}
+
+function copyHash(hash) {
+    return Object.fromEntries(Object.entries(hash || {}).map(([uid, rows]) => [uid, (rows || []).map(row => [...row])]));
+}
+
+/** 能撤回的大总结记录（最近的在最后） */
+export function summaryUndoList() {
+    return USER.getContext().chatMetadata?.[V2.summaryUndo] || [];
+}
+
+/**
+ * 撤回最近一次程序写的大总结 / 压缩
+ * - 那层之后没再改过表：整层表格原样恢复
+ * - 之后又聊了几层：在最新一层上把大总结表、归档表恢复成写之前的样子；被写进总结而删掉的事件放回事件历史最前面，之后新记的事件保留；其他表不动
+ * 同时清掉这次的请求缓存，再写时会重新请求，不会拿到同一个结果
+ * @returns {Promise<{ ok: boolean, message: string }>}
+ */
+export async function undoLastSummary() {
+    const config = summaryConfig();
+    const meta = USER.getContext().chatMetadata;
+    const list = meta[V2.summaryUndo] || [];
+    const entry = list[list.length - 1];
+    if (!entry) return { ok: false, message: '没有可以撤回的大总结' };
+    if (running) return { ok: false, message: '大总结正在写，等它写完再撤回' };
+    const chat = USER.getContext().chat || [];
+    const piece = chat[entry.floor];
+    if (!piece) return { ok: false, message: `第 ${entry.floor} 层已经不在了，撤回不了` };
+    const { piece: latest } = BASE.getLastSheetsPiece();
+    const same = (a, b) => JSON.stringify(a || {}) === JSON.stringify(b || {});
+    let mode;
+    if (latest === piece && same(piece[V2.pieceHash], entry.after)) {
+        if (entry.own) piece[V2.pieceHash] = copyHash(entry.own);
+        else delete piece[V2.pieceHash];
+        mode = '整层恢复';
+    } else {
+        if (!latest || !BASE.getPieceHash(latest)) return { ok: false, message: '找不到最新的表格' };
+        const sheets = BASE.hashSheetsToSheets(BASE.getPieceHash(latest));
+        const uidOf = (name) => findSheet(sheets, name)?.uid;
+        const target = latest[V2.pieceHash] ||= copyHash(BASE.getPieceHash(latest));
+        for (const name of [config.summaryTable, config.archiveTable]) {
+            const uid = uidOf(name);
+            if (uid && entry.before[uid]) target[uid] = entry.before[uid].map(row => [...row]);
+        }
+        const eventUid = uidOf(config.eventTable);
+        if (eventUid && entry.before[eventUid] && target[eventUid]) {
+            // 写总结前的事件 + 之后新记的事件（写完总结时事件表是清空的，所以现在表里的都是新的）
+            const kept = new Set(entry.after?.[eventUid]?.slice(1).map(row => row.join('|')) || []);
+            const added = target[eventUid].slice(1).filter(row => !kept.has(row.join('|')));
+            target[eventUid] = [target[eventUid][0], ...entry.before[eventUid].slice(1), ...added];
+        }
+        mode = `在最新一层恢复大总结和归档，事件放回事件历史`;
+    }
+    const state = meta[V2.summaryState] ||= { summaryFloors: [], cache: {} };
+    state.summaryFloors = entry.summaryFloors;
+    state.cache = {};
+    meta[V2.summaryUndo] = list.slice(0, -1);
+    await USER.saveChat();
+    return { ok: true, message: `已撤回（${mode}）：${(entry.log || []).join('；') || '大总结'}` };
 }
 
 /** 这条大总结从哪层开始：上次写大总结那层的下一层；从没写过时用导入 v2 的楼层，新聊天从 0 开始 */
