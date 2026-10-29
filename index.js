@@ -1,4 +1,5 @@
 import { V2 } from './core/v2keys.js';
+import { findRowByName, isNameKeyedSheet, mergeDuplicateRows, mergeNameCells, writeRowValues } from './core/rowIdentity.js';
 import { APP, BASE, DERIVED, EDITOR, SYSTEM, USER } from './core/manager.js';
 import { openTableRendererPopup, updateSystemMessageTableStatus } from "./scripts/renderer/tablePushToChat.js";
 import { loadSettings } from "./scripts/settings/userExtensionSetting.js";
@@ -454,19 +455,44 @@ function executeAction(EditAction, sheets) {
     if (action.data) {
         action.data = fixUnescapedSingleQuotes(action.data);
     }
+    const keyedByName = isNameKeyedSheet(sheet)
     switch (EditAction.type) {
-        case 'update':
-            // 执行更新操作
-            const rowIndex = action.rowIndex ? parseInt(action.rowIndex):0
-            if(rowIndex >= sheet.getRowCount()-1) return executeAction({...EditAction, type:'insert'}, sheets)
+        case 'update': {
             if(!action?.data) return
-            Object.entries(action.data).forEach(([key, value]) => {
-                const cell = sheet.findCellByPosition(rowIndex + 1, parseInt(key) + 1)
-                if (!cell) return -1
-                cell.newAction(Cell.CellAction.editCell, { value }, false)
-            })
+            const dataRowCount = sheet.getRowCount() - 1
+            const hasRowIndex = Number.isInteger(action.rowIndex)
+            let rowIndex = hasRowIndex ? action.rowIndex : -1
+            const incomingName = action.data[0] ?? action.data['0']
+            if (keyedByName && incomingName) {
+                // 角色类表：行号漏写、越界或和名字对不上时，按名字找那一行（P2、P3）
+                const rowNameMismatch = rowIndex >= 0 && rowIndex < dataRowCount
+                    && findRowByName(sheet, incomingName).rowIndex !== rowIndex
+                if (rowIndex < 0 || rowIndex >= dataRowCount || rowNameMismatch) {
+                    const found = findRowByName(sheet, incomingName)
+                    if (found.ambiguous.length) return reportRowIdentity(sheet, `外号「${incomingName}」同时对上了 ${found.ambiguous.join('、')}，这条更新已跳过`)
+                    if (found.rowIndex !== -1) rowIndex = found.rowIndex
+                    // 表里没有这个人：当作新角色插入，不去改行号指向的另一个人
+                    else return executeAction({...EditAction, type:'insert'}, sheets)
+                }
+            } else if (!hasRowIndex) {
+                // 漏写行号又没法按名字找时，不再默认改第 0 行（P3）
+                return reportRowIdentity(sheet, `updateRow 没写行号，已跳过：${JSON.stringify(action.data)}`)
+            }
+            if(rowIndex >= dataRowCount) return executeAction({...EditAction, type:'insert'}, sheets)
+            writeRowValues(sheet, rowIndex, action.data, keyedByName)
             break
+        }
         case 'insert': {
+            if (keyedByName && action.data) {
+                // 角色类表：同主名的人已经在表里，就改成更新那一行（B1）；外号不用来合并（K1）
+                const incomingName = action.data[0] ?? action.data['0']
+                const found = incomingName ? findRowByName(sheet, incomingName, { allowAlias: false }) : { rowIndex: -1 }
+                if (found.rowIndex !== -1) {
+                    writeRowValues(sheet, found.rowIndex, action.data, true)
+                    console.log("同名角色已存在，insertRow 改为更新", incomingName)
+                    break
+                }
+            }
             // 执行插入操作
             const cell = sheet.findCellByPosition(sheet.getRowCount() - 1, 0)
             if (!cell) return -1
@@ -476,7 +502,8 @@ function executeAction(EditAction, sheets) {
             if(!cells || !action.data) return
             cells.forEach((cell, index) => {
                 if (index === 0) return
-                cell.data.value = action.data[index - 1]
+                const value = action.data[index - 1]
+                cell.data.value = keyedByName && index === 1 ? mergeNameCells('', value) : value
             })
         }
             break
@@ -492,6 +519,15 @@ function executeAction(EditAction, sheets) {
     return 1
 }
 
+
+/** 按名字找行时遇到的问题：记日志并提示一次 */
+function reportRowIdentity(sheet, message) {
+    const text = `「${sheet.name}」${message}`
+    console.warn('[记忆增强 v2]', text)
+    DERIVED.any.rowIdentityLog = [...(DERIVED.any.rowIdentityLog || []).slice(-49), { at: new Date().toISOString(), text }]
+    EDITOR.warning(text)
+    return -1
+}
 
 /**
  * 为actions排序
@@ -1076,6 +1112,23 @@ jQuery(async () => {
             await updateSheetsView()
             EDITOR.success('已从原版导入表格')
         }
+    })
+    // 合并角色类表里同名的重复行（老档迁移）
+    $(document).on('click', '#table_v2_merge_duplicates_button', async function () {
+        const { piece: tablePiece } = BASE.getLastSheetsPiece()
+        const { piece: currentPiece } = USER.getChatPiece()
+        if (!currentPiece) return EDITOR.error('没有可以保存表格的 AI 消息，请先聊一轮')
+        const sheets = BASE.hashSheetsToSheets(BASE.getPieceHash(tablePiece)).filter(sheet => sheet.enable)
+        const preview = mergeDuplicateRows(sheets, true)
+        if (!preview.length) return EDITOR.success('角色类表里没有同名的重复行')
+        const list = preview.map(x => `「${x.sheet}」${x.name}：${x.merged + 1} 行合成 1 行`).join('<br>')
+        const ok = await EDITOR.callGenericPopup(`找到这些重复的角色：<br><br>${list}<br><br>合并时保留最早的一行，后面行里不为空的内容并进去（# 列追加、名字列合并外号），然后删掉后面的行。<br>结果存到最新一层，之前楼层的表格不变，可以回退。`, EDITOR.POPUP_TYPE.CONFIRM, '合并重复角色', { okButton: '合并', cancelButton: '取消' })
+        if (!ok) return
+        mergeDuplicateRows(sheets)
+        sheets.forEach(sheet => sheet.save(currentPiece, true))
+        USER.saveChat()
+        await updateSheetsView()
+        EDITOR.success(`已合并 ${preview.reduce((n, x) => n + x.merged, 0)} 行重复角色`)
     })
     // 点击打开查看表格日志按钮
     $(document).on('click', '#table_debug_log_button', function () {
