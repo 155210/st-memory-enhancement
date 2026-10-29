@@ -1,3 +1,4 @@
+import { V2 } from './core/v2keys.js';
 import { APP, BASE, DERIVED, EDITOR, SYSTEM, USER } from './core/manager.js';
 import { openTableRendererPopup, updateSystemMessageTableStatus } from "./scripts/renderer/tablePushToChat.js";
 import { loadSettings } from "./scripts/settings/userExtensionSetting.js";
@@ -346,10 +347,10 @@ function handleTableEditTag(matches) {
  * @returns
  */
 function isTableEditStrChanged(chat, matches) {
-    if (chat.tableEditMatches != null && chat.tableEditMatches.join('') === matches.join('')) {
+    if (chat[V2.tableEditMatches] != null && chat[V2.tableEditMatches].join('') === matches.join('')) {
         return false
     }
-    chat.tableEditMatches = matches
+    chat[V2.tableEditMatches] = matches
     return true
 }
 
@@ -942,6 +943,9 @@ jQuery(async () => {
         ext_getAllTables,
         ext_exportAllTablesAsJson,
         VERSION,
+        // 给「小说导入改写」等外部模块用：v2 的设置和消息标记存在这些键下
+        isV2: true,
+        storageKeys: { ...V2 },
     };
 
     // 初始化外部数据适配器

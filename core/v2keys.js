@@ -19,6 +19,7 @@ export const V2 = {
     pieceHash: 'hash_sheets_v2',
     twoStepLinks: 'two_step_links_v2',
     twoStepWaiting: 'two_step_waiting_v2',
+    tableEditMatches: 'tableEditMatches_v2',
 };
 
 /** 原版插件使用的键，只读 */
