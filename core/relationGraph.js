@@ -1,0 +1,189 @@
+import { USER } from './manager.js';
+import { getHeaders, isNameKeyedSheet, parseNameCell, stripColumnMark } from './rowIdentity.js';
+import { collectNames, findRolesInText, readRows, recentText, summaryConfig } from './summaryManager.js';
+
+/**
+ * @description P12 角色关系图：读角色表、社交表和大总结的「涉及角色」，在浏览器里用 SVG 画成关系网
+ * @description - 实线：社交表里角色对 <user> 的关系，线上写关系词
+ * @description - 虚线：在同几条总结里一起出现过的两个人，越常一起出现线越深
+ * @description 只给你看，不发给 AI；最多 30 个人，按出场多少挑
+ */
+
+const clean = (v) => String(v ?? '').trim();
+const esc = (text) => clean(text).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const short = (text, max) => (text.length > max ? `${text.slice(0, max)}…` : text);
+
+/**
+ * 从表格算出关系网
+ * @returns {{ nodes: { id: string, label: string, weight: number, isUser: boolean }[], edges: { a: string, b: string, label: string, weight: number, kind: 'relation'|'together' }[] }}
+ */
+export function buildGraph(sheets, maxNodes = 30) {
+    const userName = clean(USER.getContext().name1) || '<user>';
+    const names = collectNames(sheets);
+    const weight = new Map();
+    const bump = (name, n = 1) => weight.set(name, (weight.get(name) || 0) + n);
+    for (const primary of new Set(names.values())) bump(primary, 0);
+
+    // 总结里的同场
+    const { summaryTable, archiveTable } = summaryConfig();
+    const together = new Map();
+    for (const sheet of sheets.filter(s => s.name === summaryTable || s.name === archiveTable)) {
+        const rolesCol = getHeaders(sheet).findIndex(h => stripColumnMark(h) === '涉及角色');
+        for (const row of readRows(sheet)) {
+            const roles = rolesCol >= 0 && row.values[rolesCol]
+                ? row.values[rolesCol].split(/[|｜/、,，]/).map(clean).filter(n => weight.has(n))
+                : findRolesInText(row.values.join(' '), names, 6);
+            const unique = [...new Set(roles)];
+            unique.forEach(n => bump(n, 2));
+            for (let i = 0; i < unique.length; i++) for (let j = i + 1; j < unique.length; j++) {
+                const key = [unique[i], unique[j]].sort().join('\u0000');
+                together.set(key, (together.get(key) || 0) + 1);
+            }
+        }
+    }
+    findRolesInText(recentText(30), names, 100).forEach(n => bump(n, 3));
+
+    // 社交表：对 <user> 的关系
+    const relations = [];
+    for (const sheet of sheets.filter(isNameKeyedSheet)) {
+        const col = getHeaders(sheet).findIndex(h => /关系/.test(stripColumnMark(h)));
+        if (col <= 0) continue;
+        for (const row of readRows(sheet)) {
+            const { primary } = parseNameCell(row.values[0]);
+            const relation = clean(row.values[col]);
+            if (!primary || !relation || !weight.has(primary)) continue;
+            relations.push({ a: userName, b: primary, label: short(relation, 10), weight: 1, kind: 'relation' });
+            bump(primary, 1);
+        }
+    }
+
+    const picked = [...weight.entries()].sort((a, b) => b[1] - a[1]).slice(0, Math.max(1, maxNodes - 1)).map(([n]) => n);
+    const keep = new Set([userName, ...picked]);
+    const nodes = [{ id: userName, label: userName, weight: Infinity, isUser: true }, ...picked.map(n => ({ id: n, label: n, weight: weight.get(n), isUser: false }))];
+    const edges = [
+        ...relations.filter(e => keep.has(e.b)),
+        ...[...together.entries()].map(([key, n]) => { const [a, b] = key.split('\u0000'); return { a, b, label: `同场 ${n} 次`, weight: n, kind: 'together' }; })
+            .filter(e => keep.has(e.a) && keep.has(e.b) && e.weight >= 2),
+    ];
+    return { nodes, edges };
+}
+
+/**
+ * 力导向布局（确定性：起点排成圆）
+ * @returns {Map<string, { x: number, y: number }>}
+ */
+export function layoutGraph(graph, width = 800, height = 600, iterations = 300) {
+    const { nodes, edges } = graph;
+    const pos = new Map();
+    const cx = width / 2, cy = height / 2;
+    nodes.forEach((n, i) => {
+        if (n.isUser) return pos.set(n.id, { x: cx, y: cy });
+        const angle = (2 * Math.PI * i) / Math.max(1, nodes.length - 1);
+        pos.set(n.id, { x: cx + Math.cos(angle) * width * 0.35, y: cy + Math.sin(angle) * height * 0.35 });
+    });
+    const k = Math.sqrt((width * height) / Math.max(1, nodes.length)) * 0.7;
+    let temp = width / 10;
+    for (let it = 0; it < iterations; it++) {
+        const disp = new Map(nodes.map(n => [n.id, { x: 0, y: 0 }]));
+        for (let i = 0; i < nodes.length; i++) for (let j = i + 1; j < nodes.length; j++) {
+            const a = pos.get(nodes[i].id), b = pos.get(nodes[j].id);
+            let dx = a.x - b.x, dy = a.y - b.y;
+            const d = Math.max(0.01, Math.hypot(dx, dy));
+            const f = (k * k) / d;
+            dx = (dx / d) * f; dy = (dy / d) * f;
+            disp.get(nodes[i].id).x += dx; disp.get(nodes[i].id).y += dy;
+            disp.get(nodes[j].id).x -= dx; disp.get(nodes[j].id).y -= dy;
+        }
+        for (const e of edges) {
+            const a = pos.get(e.a), b = pos.get(e.b);
+            if (!a || !b) continue;
+            let dx = a.x - b.x, dy = a.y - b.y;
+            const d = Math.max(0.01, Math.hypot(dx, dy));
+            const f = ((d * d) / k) * (e.kind === 'relation' ? 1 : 0.3);
+            dx = (dx / d) * f; dy = (dy / d) * f;
+            disp.get(e.a).x -= dx; disp.get(e.a).y -= dy;
+            disp.get(e.b).x += dx; disp.get(e.b).y += dy;
+        }
+        for (const n of nodes) {
+            if (n.isUser) continue;   // 你固定在中间
+            const p = pos.get(n.id), v = disp.get(n.id);
+            const len = Math.max(0.01, Math.hypot(v.x, v.y));
+            p.x = Math.min(width - 40, Math.max(40, p.x + (v.x / len) * Math.min(len, temp)));
+            p.y = Math.min(height - 30, Math.max(30, p.y + (v.y / len) * Math.min(len, temp)));
+        }
+        temp = Math.max(1, temp * 0.98);
+    }
+    return pos;
+}
+
+/** 画成 SVG 字符串 */
+export function renderGraphSvg(graph, pos, width = 800, height = 600) {
+    const maxTogether = Math.max(1, ...graph.edges.filter(e => e.kind === 'together').map(e => e.weight));
+    const lines = graph.edges.map(e => {
+        const a = pos.get(e.a), b = pos.get(e.b);
+        if (!a || !b) return '';
+        const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+        if (e.kind === 'relation') {
+            return `<g class="v2g-edge" data-a="${esc(e.a)}" data-b="${esc(e.b)}"><line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="var(--v2g-line)" stroke-width="1.5"/><text x="${mx}" y="${my - 4}" class="v2g-label" text-anchor="middle">${esc(e.label)}</text></g>`;
+        }
+        const opacity = (0.25 + 0.6 * (e.weight / maxTogether)).toFixed(2);
+        return `<g class="v2g-edge" data-a="${esc(e.a)}" data-b="${esc(e.b)}"><line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="var(--v2g-line)" stroke-dasharray="4 4" stroke-opacity="${opacity}"><title>${esc(e.a)} 和 ${esc(e.b)}：${esc(e.label)}</title></line></g>`;
+    }).join('');
+    const maxWeight = Math.max(1, ...graph.nodes.filter(n => !n.isUser).map(n => n.weight));
+    const circles = graph.nodes.map(n => {
+        const p = pos.get(n.id);
+        const r = n.isUser ? 16 : 8 + 8 * (n.weight / maxWeight);
+        return `<g class="v2g-node" data-id="${esc(n.id)}" transform="translate(${p.x},${p.y})" style="cursor:grab"><circle r="${r.toFixed(1)}" fill="${n.isUser ? 'var(--v2g-user)' : 'var(--v2g-node)'}" stroke="var(--v2g-line)"/><text y="${(r + 13).toFixed(1)}" text-anchor="middle" class="v2g-name">${esc(n.label)}</text></g>`;
+    }).join('');
+    return `<svg class="v2-relation-graph" viewBox="0 0 ${width} ${height}" width="100%" style="max-height:70vh;touch-action:none;user-select:none">
+<style>.v2-relation-graph{--v2g-line:var(--SmartThemeBodyColor,#888);--v2g-node:var(--SmartThemeQuoteColor,#6a9);--v2g-user:var(--SmartThemeEmColor,#c96)}.v2g-label{font-size:11px;fill:var(--SmartThemeBodyColor,#ccc);opacity:.8}.v2g-name{font-size:13px;fill:var(--SmartThemeBodyColor,#eee)}</style>
+<g class="v2g-viewport">${lines}${circles}</g></svg>`;
+}
+
+/** 给画好的图加上拖动节点、拖动画布和滚轮缩放 */
+export function attachGraphInteraction(svg, graph, pos) {
+    if (!svg) return;
+    const viewport = svg.querySelector('.v2g-viewport');
+    let scale = 1, tx = 0, ty = 0;
+    const apply = () => viewport.setAttribute('transform', `translate(${tx},${ty}) scale(${scale})`);
+    const toSvg = (event) => {
+        const rect = svg.getBoundingClientRect();
+        const vb = svg.viewBox.baseVal;
+        return { x: ((event.clientX - rect.left) / rect.width) * vb.width, y: ((event.clientY - rect.top) / rect.height) * vb.height };
+    };
+    const redrawEdges = (id) => {
+        svg.querySelectorAll('.v2g-edge').forEach(g => {
+            if (g.dataset.a !== id && g.dataset.b !== id) return;
+            const a = pos.get(g.dataset.a), b = pos.get(g.dataset.b);
+            const line = g.querySelector('line');
+            line.setAttribute('x1', a.x); line.setAttribute('y1', a.y); line.setAttribute('x2', b.x); line.setAttribute('y2', b.y);
+            const text = g.querySelector('text');
+            if (text) { text.setAttribute('x', (a.x + b.x) / 2); text.setAttribute('y', (a.y + b.y) / 2 - 4); }
+        });
+    };
+    let drag = null;
+    svg.addEventListener('pointerdown', (event) => {
+        const node = event.target.closest('.v2g-node');
+        const p = toSvg(event);
+        drag = node ? { id: node.dataset.id, node } : { pan: true, x: p.x - tx, y: p.y - ty };
+        svg.setPointerCapture(event.pointerId);
+    });
+    svg.addEventListener('pointermove', (event) => {
+        if (!drag) return;
+        const p = toSvg(event);
+        if (drag.pan) { tx = p.x - drag.x; ty = p.y - drag.y; return apply(); }
+        const point = pos.get(drag.id);
+        point.x = (p.x - tx) / scale; point.y = (p.y - ty) / scale;
+        drag.node.setAttribute('transform', `translate(${point.x},${point.y})`);
+        redrawEdges(drag.id);
+    });
+    svg.addEventListener('pointerup', () => { drag = null; });
+    svg.addEventListener('wheel', (event) => {
+        event.preventDefault();
+        const p = toSvg(event);
+        const next = Math.min(4, Math.max(0.3, scale * (event.deltaY < 0 ? 1.1 : 0.9)));
+        tx = p.x - ((p.x - tx) * next) / scale; ty = p.y - ((p.y - ty) * next) / scale;
+        scale = next;
+        apply();
+    }, { passive: false });
+}

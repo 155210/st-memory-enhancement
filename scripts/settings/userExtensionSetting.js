@@ -1,5 +1,6 @@
 import { V2 } from '../../core/v2keys.js';
 import {BASE, DERIVED, EDITOR, SYSTEM, USER} from '../../core/manager.js';
+import { applyTheme } from '../../core/themes.js';
 import {updateSystemMessageTableStatus, updateAlternateTable} from "../renderer/tablePushToChat.js";
 import {rebuildSheets , modifyRebuildTemplate, newRebuildTemplate, deleteRebuildTemplate, exportRebuildTemplate, importRebuildTemplate, triggerStepByStepNow} from "../runtime/absoluteRefresh.js";
 import {generateDeviceId} from "../../utils/utility.js";
@@ -334,6 +335,11 @@ function InitBinging() {
             if (Number.isInteger(value) && value >= 0) USER.tableBaseSetting[`v2_summary_${key}`] = value;
         });
     });
+    // v2：表格配色
+    $('#table_v2_theme').on('change', function () {
+        USER.tableBaseSetting.v2_theme = this.value;
+        applyTheme(this.value);
+    });
     // v2：角色表分档发送、定时提醒
     $('#table_v2_tier_switch').change(function () {
         USER.tableBaseSetting.v2_tier_enabled = this.checked;
@@ -634,6 +640,7 @@ export function renderSetting() {
     updateSwitch('#table_switch_debug_mode', USER.tableBaseSetting.tableDebugModeAble);
     updateSwitch('#table_read_switch', USER.tableBaseSetting.isAiReadTable);
     updateSwitch('#table_edit_switch', USER.tableBaseSetting.isAiWriteTable);
+    $('#table_v2_theme').val(USER.tableBaseSetting.v2_theme || 'follow');
     updateSwitch('#table_v2_tier_switch', USER.tableBaseSetting.v2_tier_enabled !== false);
     $('#table_v2_tier_main_count').val(USER.tableBaseSetting.v2_tier_main_count ?? 10);
     updateSwitch('#table_v2_reminders_switch', USER.tableBaseSetting.v2_reminders_enabled !== false);

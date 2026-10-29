@@ -802,3 +802,38 @@ td.selected {
 
 
 
+
+/* ---------- v2：表格配色（U4） ---------- */
+body.v2-theme-paper { --v2t-bg: #f4ecd8; --v2t-cell: #fbf6ea; --v2t-head: #e6d6b3; --v2t-border: #b89f74; --v2t-text: #3b2f20; --v2t-accent: #9a5b2c; }
+body.v2-theme-night { --v2t-bg: #141a26; --v2t-cell: #1b2333; --v2t-head: #25314a; --v2t-border: #3d4c6b; --v2t-text: #d9e1f2; --v2t-accent: #7aa2f7; }
+body.v2-theme-mint { --v2t-bg: #e8f5f1; --v2t-cell: #f5fbf9; --v2t-head: #c9e8de; --v2t-border: #7fb8a6; --v2t-text: #1f3b33; --v2t-accent: #1f8a70; }
+body.v2-theme-contrast { --v2t-bg: #000; --v2t-cell: #000; --v2t-head: #222; --v2t-border: #fff; --v2t-text: #fff; --v2t-accent: #ffd400; }
+
+body[class*="v2-theme-"] #table_drawer_content,
+body[class*="v2-theme-"] #app_header_table_container {
+    background: var(--v2t-bg);
+    color: var(--v2t-text);
+}
+body[class*="v2-theme-"] .sheet-table .sheet-cell {
+    background: var(--v2t-cell);
+    color: var(--v2t-text);
+    border-color: var(--v2t-border);
+}
+body[class*="v2-theme-"] .sheet-table .sheet-header-cell-top,
+body[class*="v2-theme-"] .sheet-table .sheet-header-cell-left,
+body[class*="v2-theme-"] .sheet-table .sheet-cell-origin {
+    background: var(--v2t-head);
+}
+body[class*="v2-theme-"] .sheet-table .sheet-cell-other {
+    border-color: var(--v2t-accent);
+}
+body[class*="v2-theme-"] #table_drawer_content .menu_button {
+    border-color: var(--v2t-border);
+    color: var(--v2t-text);
+}
+body[class*="v2-theme-"] .v2-relation-graph {
+    --v2g-line: var(--v2t-text);
+    --v2g-node: var(--v2t-head);
+    --v2g-user: var(--v2t-accent);
+    background: var(--v2t-bg);
+}

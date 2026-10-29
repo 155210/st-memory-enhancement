@@ -97,6 +97,25 @@ function mergeRanges(ranges) {
     return `${Math.min(...nums)}-${Math.max(...nums)}`;
 }
 
+/**
+ * 按楼层范围的起点把一条总结插到合适的位置（手动融合用）；范围认不出时放最后
+ * @returns {number} 插入后的行号
+ */
+export function insertSummaryByRange(sheet, row) {
+    const start = (String(row.range).match(/\d+/) || [])[0];
+    const rows = readSummaryRows(sheet);
+    const before = start === undefined ? undefined : rows.find(r => {
+        const s = (String(r.range).match(/\d+/) || [])[0];
+        return s !== undefined && Number(s) > Number(start);
+    });
+    if (!before) {
+        appendRow(sheet, summaryData(sheet, row));
+        return sheet.getRowCount() - 2;
+    }
+    insertRowAbove(sheet, before.rowIndex, summaryData(sheet, row));
+    return before.rowIndex;
+}
+
 // ---------------------------------------------------------------- 人名
 
 /** 所有角色类表里的名字：别名 → 主名 */
@@ -134,12 +153,14 @@ async function askModel(system, user) {
     const result = useMain
         ? await handleMainAPIRequest([{ role: 'system', content: system }, { role: 'user', content: user }], null, true)
         : await handleCustomAPIRequest(system, user, false, true);
-    if (!result || result === 'suspended') throw new Error('总结请求没有返回内容');
+    // 诊断导出用：记下最近一次额外请求
+    DERIVED.any.lastExtraRequest = { at: new Date().toISOString(), system, user, result: typeof result === 'string' ? result : String(result) };
+    if (!result || result === 'suspended') throw new Error('请求没有返回内容');
     return String(result);
 }
 
 /** 从模型输出里取 <summary> 和 <past>（没有标签就整段当总结） */
-function parseSummaryOutput(text) {
+export function parseSummaryOutput(text) {
     const pick = (tag) => (text.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`)) || [])[1];
     const summary = clean(pick('summary') ?? text.replace(/<think(ing)?>[\s\S]*?<\/think(ing)?>/g, '')).replace(/\n+/g, ' ');
     const past = clean(pick('past') ?? '').split('\n').map(clean).filter(Boolean).map(line => {

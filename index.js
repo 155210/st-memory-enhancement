@@ -2,6 +2,11 @@ import { V2 } from './core/v2keys.js';
 import { findRowByName, isNameKeyedSheet, mergeDuplicateRows, mergeNameCells, writeRowValues } from './core/rowIdentity.js';
 import { syncChatSheetsWithTemplates } from './core/templateSync.js';
 import { buildTieredRows, computeTiers, tierConfig } from './core/sendTiers.js';
+import { planBackfill, runBackfill } from './core/backfill.js';
+import { generateFusion, insertFusion, selectFloors } from './core/fusion.js';
+import { downloadDiagnostics, installErrorCapture } from './core/diagnostics.js';
+import { attachGraphInteraction, buildGraph, layoutGraph, renderGraphSvg } from './core/relationGraph.js';
+import { applyTheme } from './core/themes.js';
 import { applyConditionalBlocks, dueReminderText, lastInjection, recordInjection } from './core/promptExtras.js';
 import { annotateRelativeDates, buildRecallBlock, currentStoryDate, isArchiveSheet, migrateOldSummaries, runSummaryAfterFill, shouldIgnoreAiEdit, summaryConfig } from './core/summaryManager.js';
 import { APP, BASE, DERIVED, EDITOR, SYSTEM, USER } from './core/manager.js';
@@ -26,7 +31,7 @@ import { findActiveOriginal, importOriginalSettingsOnce, offerChatImport, import
 
 console.log("______________________记忆插件：开始加载______________________")
 
-const VERSION = '2.2.19-v2.2'
+const VERSION = '2.2.19-v2.3'
 // v2 的版本检查地址（v2 单独一个仓库，和原版的更新提示互不干扰）
 const V2_MANIFEST_URL = 'https://raw.githubusercontent.com/155210/st-memory-enhancement-v2/refs/heads/master/manifest.json'
 
@@ -460,6 +465,22 @@ export function parseTableEditTag(piece, mesIndex = -1, ignoreCheck = false) {
     console.log("获取到的表格数据", prePiece)
     console.log("测试总chat", USER.getContext().chat)
     return true
+}
+
+/**
+ * v2：把一段 AI 输出里的 <tableEdit> 指令执行到给定的表格上（回填用，不保存）
+ * @param {string} text AI 输出
+ * @param {Object[]} sheets 启用的表格实例
+ * @returns {number} 执行的指令数
+ */
+export function applyTableEditText(text, sheets) {
+    const { matches } = getTableEditTag(text)
+    if (!matches.length) return 0
+    const tableEditActions = handleTableEditTag(matches)
+    tableEditActions.forEach((action, index) => tableEditActions[index].action = classifyParams(formatParams(action.param)))
+    const sorted = sortActions(tableEditActions)
+    for (const EditAction of sorted) executeAction(EditAction, sheets, { live: true })
+    return sorted.length
 }
 
 /**
@@ -1037,6 +1058,8 @@ jQuery(async () => {
 
     // 首次运行时复制原版的设置和模板（只复制，不改原版）
     importOriginalSettingsOnce();
+    installErrorCapture();
+    applyTheme();
 
     // 注册API
     window.stMemoryEnhancement = {
@@ -1234,6 +1257,133 @@ jQuery(async () => {
             EDITOR.error('整理旧大总结失败，补全的列已保存，压缩可以再点一次', error.message, error)
         }
     })
+    // 弹窗里的表单：输入时记下值，弹窗关掉后还能读到
+    const popupForm = {}
+    $(document).on('input change', '.v2-popup-form :input', function () {
+        popupForm[this.id] = this.type === 'checkbox' ? this.checked : this.value
+    })
+    const formValue = (id, fallback = '') => popupForm[id] ?? fallback
+    const confirmPopup = (html, title, okButton) => EDITOR.callGenericPopup(html, EDITOR.POPUP_TYPE.CONFIRM, title, { okButton, cancelButton: '取消' })
+    const esc = (text) => String(text ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
+
+    // O3：从第一层分批回填
+    let backfillRunning = false
+    let backfillStop = false
+    $(document).on('click', '#table_v2_backfill_button', async function () {
+        if (backfillRunning) {
+            backfillStop = true
+            return EDITOR.info('这一批做完就停')
+        }
+        const chat = USER.getContext().chat || []
+        const draft = planBackfill({})
+        if (draft.start > draft.end) return EDITOR.success('后面的楼层都已经有表格了，不用回填')
+        Object.assign(popupForm, { v2_backfill_from: String(draft.start), v2_backfill_to: String(chat.length - 1), v2_backfill_batch: String(USER.tableBaseSetting.v2_backfill_batch || 5) })
+        const ok = await confirmPopup(`<div class="v2-popup-form" style="text-align:left;display:flex;flex-direction:column;gap:6px">
+            <p>从没有表格的楼层开始，每批几层正文发一次请求，补填表格。已经有表格的楼层一个都不改${draft.lastFilled >= 0 ? `（第 ${draft.lastFilled} 层之前已有表格，最早只能从第 ${draft.lastFilled + 1} 层开始）` : ''}。</p>
+            <label>从第几层 <input id="v2_backfill_from" class="text_pole" type="number" value="${draft.start}"></label>
+            <label>到第几层 <input id="v2_backfill_to" class="text_pole" type="number" value="${chat.length - 1}"></label>
+            <label>每批几条 AI 回复 <input id="v2_backfill_batch" class="text_pole" type="number" min="1" value="${USER.tableBaseSetting.v2_backfill_batch || 5}"></label>
+        </div>`, '从头回填表格', '下一步')
+        if (!ok) return
+        const batch = Math.max(1, parseInt(formValue('v2_backfill_batch')) || 5)
+        USER.tableBaseSetting.v2_backfill_batch = batch
+        const plan = planBackfill({ from: parseInt(formValue('v2_backfill_from')) || 0, to: parseInt(formValue('v2_backfill_to')), batch })
+        if (!plan.batches.length) return EDITOR.error('选的范围里没有 AI 回复')
+        const chars = plan.batches.flatMap(b => b.floors).reduce((n, i) => n + String(chat[i]?.mes || '').length, 0)
+        const sure = await confirmPopup(`<div style="text-align:left">
+            <p>从第 <b>${plan.start}</b> 层填到第 <b>${plan.batches[plan.batches.length - 1].target}</b> 层，每批 ${batch} 条 AI 回复，一共 <b>${plan.batches.length}</b> 次请求，正文约 ${chars} 字；事件满了还会另发请求写大总结。</p>
+            <p>每批的结果存在这批最后一条 AI 回复上，之前的楼层不变。中途再点一次这个按钮就会在当前批做完后停下，已填的保留。</p>
+        </div>`, '确认回填', '开始回填')
+        if (!sure) return
+        backfillRunning = true
+        backfillStop = false
+        $('#table_v2_backfill_button a').text('停止回填')
+        try {
+            const result = await runBackfill(plan, applyTableEditText, {
+                shouldStop: () => backfillStop,
+                onProgress: ({ done, total, batch: b }) => EDITOR.info(`回填 ${done}/${total}：已填到第 ${b.target} 层`),
+            })
+            await updateSheetsView()
+            const tail = result.summaries.length ? `；${result.summaries.join('；')}` : ''
+            EDITOR.success(`${result.stopped ? '已停止' : '回填完成'}：${result.done}/${plan.batches.length} 批，执行 ${result.edits} 条表格指令${tail}`)
+        } catch (error) {
+            EDITOR.error('回填中断，已经填好的批次保留，可以再点一次接着填', error.message, error)
+        } finally {
+            backfillRunning = false
+            $('#table_v2_backfill_button a').text('从头回填表格')
+        }
+    })
+
+    // O10：手动融合沙盒
+    $(document).on('click', '#table_v2_fusion_button', async function () {
+        const chat = USER.getContext().chat || []
+        Object.assign(popupForm, { v2_fusion_from: '0', v2_fusion_to: String(chat.length - 1), v2_fusion_pattern: '', v2_fusion_date_from: '', v2_fusion_date_to: '', v2_fusion_level: '大' })
+        const ok = await confirmPopup(`<div class="v2-popup-form" style="text-align:left;display:flex;flex-direction:column;gap:6px">
+            <p>挑一段正文，让 AI 写成一条更细的总结，补大总结漏掉的细节。下面的条件同时满足的楼层才会选上，留空表示不限。</p>
+            <label>从第几层 <input id="v2_fusion_from" class="text_pole" type="number" value="0"></label>
+            <label>到第几层 <input id="v2_fusion_to" class="text_pole" type="number" value="${chat.length - 1}"></label>
+            <label>正文要包含（正则，例如角色名「林悠悠|悠悠」）<input id="v2_fusion_pattern" class="text_pole" type="text"></label>
+            <label>故事日期从（例如 2025-06-01）<input id="v2_fusion_date_from" class="text_pole" type="text"></label>
+            <label>故事日期到 <input id="v2_fusion_date_to" class="text_pole" type="text"></label>
+            <label>写成 <select id="v2_fusion_level" class="text_pole"><option value="大">大总结</option><option value="卷">卷总结</option></select></label>
+        </div>`, '手动融合总结', '预览所选楼层')
+        if (!ok) return
+        const selection = selectFloors({
+            from: parseInt(formValue('v2_fusion_from')) || 0,
+            to: parseInt(formValue('v2_fusion_to')),
+            pattern: formValue('v2_fusion_pattern'),
+            dateFrom: formValue('v2_fusion_date_from'),
+            dateTo: formValue('v2_fusion_date_to'),
+        })
+        if (selection.error) return EDITOR.error(selection.error)
+        if (!selection.floors.length) return EDITOR.error('没有符合条件的楼层')
+        const level = formValue('v2_fusion_level', '大')
+        const list = selection.floors.length > 40 ? `${selection.floors.slice(0, 40).join('、')}…` : selection.floors.join('、')
+        const sure = await confirmPopup(`<div style="text-align:left"><p>选中 <b>${selection.floors.length}</b> 层，正文约 <b>${selection.chars}</b> 字，会发一次请求。</p><p>楼层：${list}</p></div>`, '确认生成', '生成')
+        if (!sure) return
+        let content
+        try {
+            EDITOR.info('正在生成融合总结…')
+            content = await generateFusion(selection.floors, level)
+        } catch (error) {
+            return EDITOR.error('生成失败', error.message, error)
+        }
+        popupForm.v2_fusion_result = content
+        const write = await confirmPopup(`<div class="v2-popup-form" style="text-align:left"><p>可以先改再写入。写入后按楼层范围插进「${summaryConfig().summaryTable}」，存到最新一层。</p>
+            <textarea id="v2_fusion_result" class="text_pole" rows="10" style="width:100%">${esc(content)}</textarea></div>`, '融合结果', '写入大总结')
+        if (!write) return
+        try {
+            const { range } = insertFusion(formValue('v2_fusion_result', content).trim() || content, selection.floors, level)
+            await updateSheetsView()
+            EDITOR.success(`已写入一条${level}总结（${range} 层）`)
+        } catch (error) {
+            EDITOR.error('写入失败', error.message, error)
+        }
+    })
+
+    // O11：导出诊断
+    $(document).on('click', '#table_v2_diagnostics_button', function () {
+        try {
+            const data = downloadDiagnostics(VERSION)
+            EDITOR.success(`已导出诊断文件（${data.errors.length} 条报错记录）`)
+        } catch (error) {
+            EDITOR.error('导出诊断失败', error.message, error)
+        }
+    })
+
+    // P12：角色关系图
+    $(document).on('click', '#table_v2_relation_graph_button', async function () {
+        const { piece } = BASE.getLastSheetsPiece()
+        const sheets = piece ? BASE.hashSheetsToSheets(BASE.getPieceHash(piece)) : []
+        const graph = buildGraph(sheets, 30)
+        if (graph.nodes.length <= 1) return EDITOR.error('角色表里还没有角色')
+        const pos = layoutGraph(graph)
+        const id = `v2_graph_${Date.now()}`
+        const html = `<div id="${id}"><p style="margin:0 0 4px">实线：对你的关系；虚线：在大总结里一起出现过，越深越常一起。拖动圆点调整位置，拖空白处平移，滚轮缩放。</p>${renderGraphSvg(graph, pos)}</div>`
+        setTimeout(() => attachGraphInteraction(document.querySelector(`#${id} svg`), graph, pos), 50)
+        await EDITOR.callGenericPopup(html, EDITOR.POPUP_TYPE.TEXT, '', { wide: true, large: true })
+    })
+
     // I5：本轮注入预览
     $(document).on('click', '#table_v2_injection_preview_button', async function () {
         if (!lastInjection()?.text) {
