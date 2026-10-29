@@ -14,6 +14,7 @@ import { applyConditionalBlocks, dueReminderText, lastInjection, recordInjection
 import { annotateRelativeDates, buildRecallBlock, currentStoryDate, isArchiveSheet, migrateOldSummaries, runSummaryAfterFill, shouldIgnoreAiEdit, summaryConfig, summaryUndoList, undoLastSummary } from './core/summaryManager.js';
 import { APP, BASE, DERIVED, EDITOR, SYSTEM, USER } from './core/manager.js';
 import { openTableRendererPopup, updateSystemMessageTableStatus } from "./scripts/renderer/tablePushToChat.js";
+import { initCharacterCard, refreshCharacterCard } from "./scripts/renderer/characterCardView.js";
 import { loadSettings } from "./scripts/settings/userExtensionSetting.js";
 import { ext_getAllTables, ext_exportAllTablesAsJson } from './scripts/settings/standaloneAPI.js';
 import { openTableDebugLogPopup } from "./scripts/settings/devConsole.js";
@@ -34,7 +35,7 @@ import { findActiveOriginal, importOriginalSettingsOnce, offerChatImport, import
 
 console.log("______________________记忆插件：开始加载______________________")
 
-const VERSION = '2.2.19-v2.19'
+const VERSION = '2.2.20-v2.20'
 // v2 的版本检查地址（v2 单独一个仓库，和原版的更新提示互不干扰）
 const V2_MANIFEST_URL = 'https://raw.githubusercontent.com/155210/st-memory-enhancement-v2/refs/heads/master/manifest.json'
 
@@ -1028,6 +1029,8 @@ export async function updateSheetsView(mesId) {
 
         // 更新系统消息中的表格状态
         updateSystemMessageTableStatus();
+        // 角色资料卡跟着表格刷新
+        refreshCharacterCard();
     }catch (error) {
         EDITOR.error("记忆插件：更新表格视图失败\n原因：", error.message, error)
     }
@@ -1488,6 +1491,7 @@ jQuery(async () => {
     APP.eventSource.on(APP.event_types.MESSAGE_EDITED, onMessageEdited);
     APP.eventSource.on(APP.event_types.MESSAGE_SWIPED, onMessageSwiped);
     APP.eventSource.on(APP.event_types.MESSAGE_DELETED, onChatChanged);
+    initCharacterCard();    // 角色资料卡：存正文状态标签、挂在最新一楼下面
 
 
     console.log("______________________记忆插件：加载完成______________________")

@@ -171,6 +171,18 @@ export const defaultSettings = await switchLanguage('__defaultSettings__', {
     v2_extra_preset: null,
     // v2：额外请求时在屏幕底部显示流式输出面板
     v2_request_panel: true,
+    // v2：角色资料卡（聊天里的角色卡片，只看不发，不进提示词）
+    v2_card_enabled: true,
+    v2_card_position: 'last_message',
+    v2_card_tag: 'Calculated_data',
+    v2_card_field_map: '',
+    v2_card_short_limit: 20,
+    v2_card_font_size: 14,
+    v2_card_layout: '',
+    v2_card_private_tables: '角色信息表格',
+    v2_card_history_points: 50,
+    v2_card_rule_check: true,
+    v2_card_jump_threshold: 20,
     // 预留
     updateIndex:3,
     /**
