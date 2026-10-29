@@ -114,3 +114,27 @@ assert.equal(await ER.askExtra('S', 'U', '预设'), '预设回复');
 assert.equal(Array.isArray(sent.prompt) && sent.prompt.length, 8, '主 API 整组消息发出去');
 USER.tableBaseSetting.v2_extra_preset_enabled = false;
 console.log('✓ 额外请求套用酒馆预设：顺序、开关、深度、调顺序');
+
+// 停止：正在发的立刻结束，停止前排队的也取消，之后的请求照常
+let stopCalled = 0;
+const ctx = USER.getContext();
+const oldStop = ctx.stopGeneration;
+ctx.stopGeneration = () => { stopCalled++; };
+APP.generateRaw = () => new Promise(() => {});   // 模型一直不回
+const hanging = ER.askExtra('s', 'u', '一直不回');
+const queued = ER.askExtra('s', 'u', '排队中');
+await new Promise(r => setTimeout(r, 50));
+ER.stopCurrent();
+await assert.rejects(hanging, /已手动停止/);
+await assert.rejects(queued, /已手动停止/);
+assert.equal(stopCalled, 1, '主 API 没有酒馆助手时调用酒馆的停止');
+APP.generateRaw = async () => '停止后照常';
+assert.equal(await ER.askExtra('s', 'u', '之后'), '停止后照常');
+ctx.stopGeneration = oldStop;
+console.log('✓ 停止立刻生效，排队的一起取消');
+
+// 设置按钮的 New 标记：代码里的版本号必须和 manifest 一致，否则一直显示 New
+const { readFileSync } = await import('node:fs');
+const manifestVersion = JSON.parse(readFileSync(REPO + '/manifest.json', 'utf8')).version;
+assert.equal(readFileSync(REPO + '/index.js', 'utf8').match(/const VERSION = '([^']+)'/)[1], manifestVersion, 'index.js 的 VERSION 和 manifest.json 一致');
+console.log('✓ 版本号一致');

@@ -14,7 +14,8 @@ const PANEL_ID = 'v2_request_panel';
 const WAIT_LIMIT_MS = 10 * 60 * 1000;
 
 let chain = Promise.resolve();
-let current = null;   // { stopped, generationId }
+let current = null;   // { stopped, generationId, abort, onStop }
+let stopEpoch = 0;    // 每按一次停止加 1：停止前排着队的请求一起取消
 
 /** 正文是否正在生成：酒馆生成时会显示停止按钮 */
 export function isMainGenerating() {
@@ -152,13 +153,18 @@ export function openRequestPanel() {
 
 /** 停止当前请求 */
 export function stopCurrent() {
+    stopEpoch++;
     if (!current) return;
     current.stopped = true;
+    try { current.abort?.abort(); } catch (_) { }
     try {
         if (current.generationId && typeof globalThis.TavernHelper?.stopGenerationById === 'function') {
             globalThis.TavernHelper.stopGenerationById(current.generationId);
+        } else if (useMainApi()) {
+            USER.getContext()?.stopGeneration?.();
         }
     } catch (_) { }
+    current.onStop?.();
     setStatus('已停止', 'stopped');
 }
 
@@ -210,6 +216,7 @@ async function viaCustomApi(messages, onText) {
         api_key: keys[0],
         model_name: privacy.custom_model_name,
         system_prompt: messages[0]?.content || '',
+        signal: current?.abort?.signal,
         temperature: USER.tableBaseSetting.custom_temperature,
         max_tokens: Number(USER.tableBaseSetting.custom_max_tokens) || 4096,
     });
@@ -218,7 +225,10 @@ async function viaCustomApi(messages, onText) {
 }
 
 async function run(system, user, title) {
-    current = { stopped: false, generationId: null };
+    current = { stopped: false, generationId: null, abort: typeof AbortController === 'function' ? new AbortController() : null, onStop: null };
+    // 按停止后立刻结束，不等模型把这段写完
+    const stopped = new Promise((_, reject) => { current.onStop = () => reject(new Error('已手动停止')); });
+    stopped.catch(() => {});
     const started = Date.now();
     showPanel(title);
     let timer = null;
@@ -233,9 +243,11 @@ async function run(system, user, title) {
                 ? '（主 API 没装酒馆助手时不能流式，生成完一次性显示；想看流式可以装酒馆助手，或把「额外请求用」改成自定义 API）' : '';
             setStatus(`${main ? '主 API' : '自定义 API'} 生成中… ${((Date.now() - started) / 1000).toFixed(0)} 秒，已收到 ${received.length} 字${noStream}`, 'running');
         }, 1000);
-        const onText = (text) => { received = text; setBody(text); };
+        const onText = (text) => { if (current?.stopped) return; received = text; setBody(text); };
         const messages = buildExtraMessages(system, user);
-        const result = main ? await viaMainApi(messages, onText) : await viaCustomApi(messages, onText);
+        const request = main ? viaMainApi(messages, onText) : viaCustomApi(messages, onText);
+        request.catch(() => {});
+        const result = await Promise.race([request, stopped]);
         if (current.stopped) throw new Error('已手动停止');
         const text = typeof result === 'string' ? result : String(result ?? '');
         DERIVED.any.lastExtraRequest = { at: new Date().toISOString(), title, system, user, result: text };
@@ -245,7 +257,8 @@ async function run(system, user, title) {
         return text;
     } catch (error) {
         DERIVED.any.lastExtraRequest = { at: new Date().toISOString(), title, system, user, result: received, error: String(error?.message || error) };
-        setStatus(`失败：${error?.message || error}`, 'error');
+        if (current?.stopped) setStatus('已停止', 'stopped');
+        else setStatus(`失败：${error?.message || error}`, 'error');
         if (received) setBody(received);
         throw error;
     } finally {
@@ -262,7 +275,11 @@ async function run(system, user, title) {
  * @returns {Promise<string>}
  */
 export function askExtra(system, user, title = '记忆表格 v2 额外请求') {
-    const task = chain.then(() => run(system, user, title));
+    const epoch = stopEpoch;
+    const task = chain.then(() => {
+        if (epoch !== stopEpoch) throw new Error('已手动停止');
+        return run(system, user, title);
+    });
     chain = task.catch(() => {});
     return task;
 }

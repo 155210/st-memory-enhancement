@@ -17,7 +17,8 @@ export class LLMApiService {
             system_prompt: config.system_prompt || "You are a helpful assistant.",
             temperature: config.temperature || 1.0,
             max_tokens: config.max_tokens || 63000, // 将默认值从 20000 修改为 63000
-            stream: config.stream || false
+            stream: config.stream || false,
+            signal: config.signal || undefined,   // AbortSignal：外面要停时中断请求
         };
     }
 
@@ -133,7 +134,8 @@ export class LLMApiService {
         const response = await fetch(apiEndpoint, {
             method: 'POST',
             headers: headers,
-            body: JSON.stringify(data)
+            body: JSON.stringify(data),
+            signal: this.config.signal,
         });
 
         if (!response.ok) {
@@ -156,7 +158,8 @@ export class LLMApiService {
         const response = await fetch(apiEndpoint, {
             method: 'POST',
             headers: headers,
-            body: JSON.stringify(data)
+            body: JSON.stringify(data),
+            signal: this.config.signal,
         });
 
         if (!response.ok) {
