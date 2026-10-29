@@ -34,7 +34,7 @@ import { findActiveOriginal, importOriginalSettingsOnce, offerChatImport, import
 
 console.log("______________________记忆插件：开始加载______________________")
 
-const VERSION = '2.2.19-v2.16'
+const VERSION = '2.2.19-v2.17'
 // v2 的版本检查地址（v2 单独一个仓库，和原版的更新提示互不干扰）
 const V2_MANIFEST_URL = 'https://raw.githubusercontent.com/155210/st-memory-enhancement-v2/refs/heads/master/manifest.json'
 
@@ -1257,7 +1257,11 @@ jQuery(async () => {
         try {
             const result = await migrateOldSummaries()
             await updateSheetsView()
-            EDITOR.success(`补全了 ${result.filled} 条；${result.log.length ? result.log.join('；') : '条数不够，没有压缩'}`)
+            const after = await migrateOldSummaries(true)
+            const unfinished = result.log.some(line => line.startsWith('压缩没做完'))
+            const text = `补全了 ${result.filled} 条；${result.log.length ? result.log.join('；') : '条数不够，没有压缩'}。现在「${config.summaryTable}」有 ${after.total} 条`
+            if (unfinished) EDITOR.warning(text, '中途有一次请求失败，已压好的不受影响，再点一次「整理旧大总结」接着压', 10000)
+            else EDITOR.success(text)
         } catch (error) {
             EDITOR.error('整理旧大总结失败，补全的列已保存，压缩可以再点一次', error.message, error)
         }
@@ -1429,7 +1433,8 @@ jQuery(async () => {
             EDITOR.info('正在让 AI 画当前地点，进度看屏幕底部的面板')
             const result = await drawAiMap(true)
             if (!result) return EDITOR.error('认不出当前地点，或者上一张还在画')
-            EDITOR.success(`画好了：${result.path}`)
+            if (result.truncated) EDITOR.warning(`画好了：${result.path}，但回复被截断，只画出前面一部分`, '回复长度不够：用自定义 API 时调大「最大 token」，用主 API 时调大酒馆的「回复长度」')
+            else EDITOR.success(`画好了：${result.path}`)
             $('#table_v2_map_button').trigger('click')
         } catch (error) {
             EDITOR.error('画地图失败', error.message, error)

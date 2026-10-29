@@ -74,6 +74,15 @@ assert.match(cleaned, /^<svg[\s\S]*<rect width="1"\/><\/svg>$/);
 assert.doesNotMatch(cleaned, /script|onload|onclick|javascript|前言|后记/);
 assert.equal(WM.sanitizeSvg('没有图'), '');
 console.log('✓ AI 返回的 SVG 去掉脚本和事件');
+// 回复被截断：丢掉半个标签，补上闭合，能画多少画多少
+const cutRaw = '<svg viewBox="0 0 300 300"><g><rect x="1" y="1" width="9" height="9"/><text x="2" y="2">陈映竹</text><text x="5" y="5">戴雪';
+assert.equal(WM.svgTruncated(cutRaw), true);
+assert.equal(WM.svgTruncated('<svg></svg>'), false);
+const repaired = WM.sanitizeSvg(cutRaw + '莲</te');
+assert.match(repaired, /陈映竹<\/text>/);
+assert.match(repaired, /<\/text><\/g><\/svg>$/);
+assert.doesNotMatch(repaired, /<\/te$/);
+console.log('✓ 截断的 SVG 补全');
 
 // AI 地图：按地点缓存
 chat.push(...chatLog);
