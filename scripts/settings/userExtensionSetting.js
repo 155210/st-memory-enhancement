@@ -334,6 +334,20 @@ function InitBinging() {
             if (Number.isInteger(value) && value >= 0) USER.tableBaseSetting[`v2_summary_${key}`] = value;
         });
     });
+    // v2：角色表分档发送、定时提醒
+    $('#table_v2_tier_switch').change(function () {
+        USER.tableBaseSetting.v2_tier_enabled = this.checked;
+    });
+    $('#table_v2_tier_main_count').on('change', function () {
+        const value = parseInt(this.value);
+        if (Number.isInteger(value) && value >= 0) USER.tableBaseSetting.v2_tier_main_count = value;
+    });
+    $('#table_v2_reminders_switch').change(function () {
+        USER.tableBaseSetting.v2_reminders_enabled = this.checked;
+    });
+    $('#table_v2_reminders').on('input', function () {
+        USER.tableBaseSetting.v2_reminders = this.value;
+    });
     // 插件读表开关
     $('#table_read_switch').change(function () {
         USER.tableBaseSetting.isAiReadTable = this.checked;
@@ -620,6 +634,10 @@ export function renderSetting() {
     updateSwitch('#table_switch_debug_mode', USER.tableBaseSetting.tableDebugModeAble);
     updateSwitch('#table_read_switch', USER.tableBaseSetting.isAiReadTable);
     updateSwitch('#table_edit_switch', USER.tableBaseSetting.isAiWriteTable);
+    updateSwitch('#table_v2_tier_switch', USER.tableBaseSetting.v2_tier_enabled !== false);
+    $('#table_v2_tier_main_count').val(USER.tableBaseSetting.v2_tier_main_count ?? 10);
+    updateSwitch('#table_v2_reminders_switch', USER.tableBaseSetting.v2_reminders_enabled !== false);
+    $('#table_v2_reminders').val(USER.tableBaseSetting.v2_reminders || '');
     updateSwitch('#table_v2_summary_switch', USER.tableBaseSetting.v2_summary_enabled !== false);
     $('#table_v2_summary_options').toggle(USER.tableBaseSetting.v2_summary_enabled !== false);
     ['event_threshold', 'batch', 'keep', 'recall_count'].forEach(key => $(`#table_v2_summary_${key}`).val(USER.tableBaseSetting[`v2_summary_${key}`]));

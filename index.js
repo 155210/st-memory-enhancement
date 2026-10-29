@@ -1,6 +1,8 @@
 import { V2 } from './core/v2keys.js';
 import { findRowByName, isNameKeyedSheet, mergeDuplicateRows, mergeNameCells, writeRowValues } from './core/rowIdentity.js';
 import { syncChatSheetsWithTemplates } from './core/templateSync.js';
+import { buildTieredRows, computeTiers, tierConfig } from './core/sendTiers.js';
+import { applyConditionalBlocks, dueReminderText, lastInjection, recordInjection } from './core/promptExtras.js';
 import { annotateRelativeDates, buildRecallBlock, currentStoryDate, isArchiveSheet, migrateOldSummaries, runSummaryAfterFill, shouldIgnoreAiEdit, summaryConfig } from './core/summaryManager.js';
 import { APP, BASE, DERIVED, EDITOR, SYSTEM, USER } from './core/manager.js';
 import { openTableRendererPopup, updateSystemMessageTableStatus } from "./scripts/renderer/tablePushToChat.js";
@@ -24,7 +26,7 @@ import { findActiveOriginal, importOriginalSettingsOnce, offerChatImport, import
 
 console.log("______________________记忆插件：开始加载______________________")
 
-const VERSION = '2.2.19-v2.1'
+const VERSION = '2.2.19-v2.2'
 // v2 的版本检查地址（v2 单独一个仓库，和原版的更新提示互不干扰）
 const V2_MANIFEST_URL = 'https://raw.githubusercontent.com/155210/st-memory-enhancement-v2/refs/heads/master/manifest.json'
 
@@ -186,10 +188,30 @@ export function findNextChatWhitTableData(startIndex, isIncludeStartIndex = fals
  * @returns 生成的完整提示词
  */
 export function initTableData(eventData) {
-    const allPrompt = USER.tableBaseSetting.message_template.replace('{{tableData}}', getTablePrompt(eventData))
+    const tablePrompt = getTablePrompt(eventData)
+    // I2：消息模板里的条件块按当前表格取舍；W3：到点的定时提醒附在最后
+    const template = applyConditionalBlocks(USER.tableBaseSetting.message_template, BASE.getChatSheets())
+    const allPrompt = template.replace('{{tableData}}', tablePrompt) + appendReminders()
     const promptContent = replaceUserTag(allPrompt)  //替换所有的<user>标签
+    noteInjectionTotal(promptContent)
     console.log("完整提示", promptContent)
     return promptContent
+}
+
+/** W3：本轮到点的提醒，记进注入预览 */
+function appendReminders() {
+    const text = dueReminderText()
+    const entry = lastInjection()
+    if (entry) entry.reminders = text
+    return text ? `\n${text}` : ''
+}
+
+/** I5：记下最终注入的全文和字数 */
+function noteInjectionTotal(text) {
+    const entry = lastInjection()
+    if (!entry) return
+    entry.totalChars = text.length
+    entry.text = text
 }
 
 /**
@@ -218,18 +240,35 @@ export function getTablePromptByPiece(piece, isPureData = false) {
         .filter(sheet => !isArchiveSheet(sheet));
     console.log("构建提示词时的信息 (已过滤)", hash_sheets, sheets)
     const customParts = isPureData ? ['title', 'headers', 'rows'] : ['title', 'node', 'headers', 'rows', 'editRules'];
-    if (isPureData || !summaryConfig().enabled) {
+    if (isPureData) {
         return sheets.map((sheet, index) => sheet.getTableText(index, customParts, piece)).join('\n')
     }
-    // v2：大总结里的日期标上「几天前」（M8），末尾附上按人名找回的旧事（M5）
-    const now = currentStoryDate(allSheets)
-    const summaryName = summaryConfig().summaryTable
+    const summary = summaryConfig()
+    // v2：角色类表按在场/主要/名册分档（I1）；大总结里的日期标上「几天前」（M8）；条件块（I2）；末尾附上按人名找回的旧事（M5）
+    const tiers = tierConfig().enabled ? computeTiers(allSheets) : null
+    const now = summary.enabled ? currentStoryDate(allSheets) : null
+    const report = []
     const sheetDataPrompt = sheets.map((sheet, index) => {
-        const text = sheet.getTableText(index, customParts, piece)
-        return sheet.name === summaryName ? annotateRelativeDates(text, now) : text
+        const managed = summary.enabled && sheet.name === summary.summaryTable
+        // 程序维护的大总结不发增删改规则，AI 只读
+        const parts = managed ? customParts.filter(part => part !== 'editRules') : customParts
+        const tiered = sheet.triggerSend ? null : buildTieredRows(sheet, tiers)
+        let text
+        if (!tiered) {
+            text = sheet.getTableText(index, parts, piece)
+        } else {
+            const head = sheet.getTableText(index, parts.filter(part => part !== 'rows' && part !== 'editRules'), piece)
+            text = head ? head + tiered.text + (parts.includes('editRules') ? sheet.getTableText(index, ['editRules'], piece) : '') : ''
+        }
+        if (managed) text = annotateRelativeDates(text, now)
+        text = applyConditionalBlocks(text, allSheets)
+        report.push({ name: sheet.name, rows: sheet.getRowCount() - 1, chars: text.length, tiers: tiered?.counts })
+        return text
     }).join('\n')
-    const recall = buildRecallBlock(allSheets)
-    return recall ? `${sheetDataPrompt}\n${annotateRelativeDates(recall, now)}` : sheetDataPrompt
+    const recall = summary.enabled ? buildRecallBlock(allSheets) : ''
+    const result = recall ? `${sheetDataPrompt}\n${annotateRelativeDates(recall, now)}` : sheetDataPrompt
+    recordInjection({ sheets: report, recallChars: recall.length, tableChars: result.length, present: tiers ? [...tiers.present] : null, main: tiers ? [...tiers.main] : null })
+    return result
 }
 
 /**
@@ -691,7 +730,9 @@ async function onChatCompletionPromptReady(eventData) {
             if (USER.tableBaseSetting.isExtensionAble === true && USER.tableBaseSetting.isAiReadTable === true && USER.tableBaseSetting.injection_mode !== "injection_off") {
                 const tableData = getTablePrompt(eventData, true); // 获取纯净数据
                 if (tableData) { // 确保有内容可注入
-                    const finalPrompt = `以下是通过表格记录的当前场景信息以及历史记录信息，你需要以此为参考进行思考：\n${tableData}`;
+                    recordInjection({ pure: true, sheets: [], tableChars: tableData.length });
+                    const finalPrompt = `以下是通过表格记录的当前场景信息以及历史记录信息，你需要以此为参考进行思考：\n${tableData}` + appendReminders();
+                    noteInjectionTotal(finalPrompt);
                     if (USER.tableBaseSetting.deep === 0) {
                         eventData.chat.push({ role: getMesRole(), content: finalPrompt });
                     } else {
@@ -1192,6 +1233,25 @@ jQuery(async () => {
         } catch (error) {
             EDITOR.error('整理旧大总结失败，补全的列已保存，压缩可以再点一次', error.message, error)
         }
+    })
+    // I5：本轮注入预览
+    $(document).on('click', '#table_v2_injection_preview_button', async function () {
+        if (!lastInjection()?.text) {
+            try { if (!USER.tableBaseSetting.step_by_step) initTableData() } catch (error) { console.warn('预览生成失败', error) }
+        }
+        const entry = lastInjection()
+        if (!entry) return EDITOR.error('还没有发送过表格，先聊一轮或打开有表格的聊天')
+        const esc = (text) => String(text ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c])
+        const rows = (entry.sheets || []).map(x => `<tr><td>${esc(x.name)}</td><td>${x.rows}</td><td>${x.tiers ? `完整 ${x.tiers.full} / 简要 ${x.tiers.brief} / 名册 ${x.tiers.roster}` : '整表'}</td><td>${x.chars}</td></tr>`).join('')
+        const html = `<div style="text-align:left">
+            <p>时间：${esc(entry.at)}，第 ${entry.turn} 轮${entry.pure ? '（分步填表，只发数据）' : ''}</p>
+            <p>注入总字数：<b>${entry.totalChars ?? entry.tableChars ?? 0}</b>（表格部分 ${entry.tableChars ?? 0}，找回旧事 ${entry.recallChars ?? 0}）</p>
+            ${entry.present ? `<p>在场：${esc(entry.present.join('、') || '无')}<br>主要角色：${esc(entry.main.join('、') || '无')}</p>` : ''}
+            ${rows ? `<table style="width:100%;border-collapse:collapse" border="1"><tr><th>表</th><th>行数</th><th>发送方式</th><th>字数</th></tr>${rows}</table>` : ''}
+            ${entry.reminders ? `<p>定时提醒：</p><pre style="white-space:pre-wrap">${esc(entry.reminders)}</pre>` : ''}
+            <details><summary>完整内容</summary><pre style="white-space:pre-wrap;max-height:50vh;overflow:auto">${esc(entry.text || '')}</pre></details>
+        </div>`
+        await EDITOR.callGenericPopup(html, EDITOR.POPUP_TYPE.TEXT, '', { wide: true, allowVerticalScrolling: true })
     })
     // 点击打开查看表格日志按钮
     $(document).on('click', '#table_debug_log_button', function () {

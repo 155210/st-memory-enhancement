@@ -43,6 +43,10 @@
                             <i class="fa-solid fa-layer-group"></i>
                             <a>整理旧大总结</a>
                         </div>
+                        <div class="menu_button_icon menu_button interactable" id="table_v2_injection_preview_button" title="看本轮实际发给 AI 的表格、行数和字数">
+                            <i class="fa-solid fa-eye"></i>
+                            <a>本轮注入预览</a>
+                        </div>
                         <div class="menu_button_icon menu_button interactable" id="table_debug_log_button">
                             <i class="fa-solid fa-bug"></i>
                             <a data-i18n="Logs">Log</a>
@@ -99,6 +103,20 @@
                                 <label>几条压成一条 <input type="number" id="table_v2_summary_batch" class="text_pole" min="2" style="width: 60px"></label>
                                 <label>最近几条不压 <input type="number" id="table_v2_summary_keep" class="text_pole" min="0" style="width: 60px"></label>
                                 <label>每轮最多找回几条旧事 <input type="number" id="table_v2_summary_recall_count" class="text_pole" min="0" style="width: 60px"></label>
+                            </div>
+                            <div class="checkbox_label range-block justifyLeft">
+                                <input type="checkbox" id="table_v2_tier_switch"><span>角色表分档发送（v2）</span>
+                                <small class="toggle-description justifyLeft">(在场的人发完整资料，最近常出场的主要角色发简要，其余只列名字；你自己永远发完整)</small>
+                            </div>
+                            <div style="padding-left: 5px;">
+                                <label>主要角色人数 <input type="number" id="table_v2_tier_main_count" class="text_pole" min="0" style="width: 60px"></label>
+                            </div>
+                            <div class="checkbox_label range-block justifyLeft">
+                                <input type="checkbox" id="table_v2_reminders_switch"><span>定时提醒（v2）</span>
+                                <small class="toggle-description justifyLeft">(每行写「间隔轮数|提醒内容」，例如「10|检查悬念簿里有没有该收的伏笔」，到点时附在表格提示词后面)</small>
+                            </div>
+                            <div style="padding-left: 5px;">
+                                <textarea id="table_v2_reminders" class="wide100p" rows="3" placeholder="10|检查悬念簿里有没有该收的伏笔&#10;30|推进主线"></textarea>
                             </div>
 
                             <h4 data-i18n="Message template">消息模板</h4>

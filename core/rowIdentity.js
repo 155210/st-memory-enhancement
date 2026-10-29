@@ -119,6 +119,8 @@ export function resolveCellWrite(header, oldValue, newValue, isNameColumn = fals
     const next = clean(newValue);
     const prev = clean(oldValue);
     if (!next) return keepOnEmpty || !prev ? undefined : '';   // 角色类表空值不覆盖；其他表照原版允许清空
+    // 分档发送时长格子被截成「前半段…」或「…最后一段」，AI 原样抄回来时不覆盖原文
+    if (prev && next.includes('…') && next.split('…').every(part => !part || prev.includes(part))) return undefined;
     if (isNameColumn) {
         const merged = mergeNameCells(prev, next);
         return merged === prev ? undefined : merged;
