@@ -172,7 +172,7 @@ const AI_MAP_SYSTEM = `你是地图绘制员。根据用户给的地点和最近
 export function mapSize() {
     const w = globalThis.innerWidth || 0, h = globalThis.innerHeight || 0;
     if (!w || !h) return { width: 600, height: 400 };
-    return { width: Math.max(320, Math.round(Math.min(w, 1000) - 48)), height: Math.max(360, Math.round(h * 0.6)) };
+    return { width: Math.max(320, Math.round(Math.min(w, 1000) - 100)), height: Math.max(360, Math.round(h * 0.55)) };
 }
 
 /** 当前地点的缓存地图 */
