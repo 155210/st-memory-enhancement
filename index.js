@@ -8,7 +8,7 @@ import { downloadDiagnostics, installErrorCapture } from './core/diagnostics.js'
 import { attachGraphInteraction, buildGraph, layoutGraph, renderGraphSvg } from './core/relationGraph.js';
 import { applyTheme } from './core/themes.js';
 import { buildLocationTree } from './core/locationTree.js';
-import { drawAiMap, mapMode, mapPanelHtml, maybeDrawOnNewPlace, presentNames } from './core/worldMap.js';
+import { attachMapZoom, drawAiMap, mapMode, mapPanelHtml, maybeDrawOnNewPlace, presentNames } from './core/worldMap.js';
 import { applyConditionalBlocks, dueReminderText, lastInjection, recordInjection } from './core/promptExtras.js';
 import { annotateRelativeDates, buildRecallBlock, currentStoryDate, isArchiveSheet, migrateOldSummaries, runSummaryAfterFill, shouldIgnoreAiEdit, summaryConfig } from './core/summaryManager.js';
 import { APP, BASE, DERIVED, EDITOR, SYSTEM, USER } from './core/manager.js';
@@ -33,7 +33,7 @@ import { findActiveOriginal, importOriginalSettingsOnce, offerChatImport, import
 
 console.log("______________________记忆插件：开始加载______________________")
 
-const VERSION = '2.2.19-v2.5'
+const VERSION = '2.2.19-v2.6'
 // v2 的版本检查地址（v2 单独一个仓库，和原版的更新提示互不干扰）
 const V2_MANIFEST_URL = 'https://raw.githubusercontent.com/155210/st-memory-enhancement-v2/refs/heads/master/manifest.json'
 
@@ -1399,7 +1399,11 @@ jQuery(async () => {
         const { piece } = BASE.getLastSheetsPiece()
         const sheets = piece ? BASE.hashSheetsToSheets(BASE.getPieceHash(piece)) : []
         const tree = buildLocationTree(USER.getContext().chat || [], sheets)
-        const html = `<div style="text-align:left">${mapPanelHtml(tree, presentNames(sheets), mode)}</div>`
+        const id = `v2_map_${Date.now()}`
+        const touch = window.matchMedia?.('(pointer: coarse)')?.matches
+        const hint = touch ? '单指拖动平移，双指捏合缩放，双击复原。' : '拖动平移，滚轮缩放，双击复原。'
+        const html = `<div id="${id}" style="text-align:left">${mapPanelHtml(tree, presentNames(sheets), mode)}<p style="margin:4px 0 0;font-size:12px;opacity:.7">${hint}</p></div>`
+        setTimeout(() => attachMapZoom(document.querySelector(`#${id} svg`)), 50)
         if (mode !== 'ai') return EDITOR.callGenericPopup(html, EDITOR.POPUP_TYPE.TEXT, '', { wide: true, large: true })
         const redraw = await EDITOR.callGenericPopup(html, EDITOR.POPUP_TYPE.CONFIRM, '', { wide: true, large: true, okButton: '让 AI 画（重画）', cancelButton: '关闭' })
         if (!redraw) return

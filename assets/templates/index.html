@@ -143,7 +143,7 @@
                                         <option value="custom">自定义独立 API</option>
                                     </select>
                                 </label>
-                                <small class="toggle-description justifyLeft">(正文还在生成时会先等它生成完再发，不会抢正文的请求)</small>
+                                <small class="toggle-description justifyLeft">(自定义 API 的地址和密钥填在右边「运行策略」下面的「自定义独立API」里。正文还在生成时会先等它生成完再发，不会抢正文的请求)</small>
                             </div>
                             <div class="checkbox_label range-block justifyLeft">
                                 <input type="checkbox" id="table_v2_request_panel_switch"><span>额外请求时在底部显示输出面板（v2）</span>
@@ -259,72 +259,71 @@
                                         <small class="toggle-description justifyLeft"
                                             data-i18n="Confirm before execution description">(独立填表流程遇到检查节点时会弹出确认框)</small>
                                     </div>
-
-                                    <div class="inline-drawer wide100p">
-                                        <div class="inline-drawer-toggle inline-drawer-header">
-                                            <b><span data-i18n="Custom independent API">自定义独立API</span></b>
-                                            <div class="fa-solid fa-circle-chevron-down inline-drawer-icon down"></div>
+                                </div>
+                                <div class="inline-drawer wide100p">
+                                    <div class="inline-drawer-toggle inline-drawer-header">
+                                        <b><span data-i18n="Custom independent API">自定义独立API</span><small style="font-weight:normal">（分步填表和 v2 额外请求都用这里）</small></b>
+                                        <div class="fa-solid fa-circle-chevron-down inline-drawer-icon down"></div>
+                                    </div>
+                                    <div class="inline-drawer-content"
+                                        style="display: none; padding-left: 20px; width: calc(100% - 20px)">
+                                        <!-- 自定义API设置 -->
+                                        <input type="text" id="custom_api_url" class="text_pole"
+                                            placeholder="API URL（请以/v1结尾）">
+                                        <input type="password" id="custom_api_key" class="text_pole"
+                                            placeholder="API Key(多个key用逗号隔开)">
+                                        <input type="text" id="custom_model_name" class="text_pole"
+                                            placeholder="Model Name（模型名称，可手动输入或自动获取）">
+                                        <div class="range-block justifyLeft">
+                                            <select id="model_selector" class="text_pole">
+                                                <option value="">请先获取模型列表</option>
+                                            </select>
+                                            <div class="menu_button menu_button_icon" id="fetch_models_button">
+                                                <a>获取模型列表</a>
+                                            </div>
+                                            <div class="menu_button menu_button_icon" id="table_test_api_button"
+                                                style="margin-left: 5px;">
+                                                <a>测试</a>
+                                            </div>
                                         </div>
-                                        <div class="inline-drawer-content"
-                                            style="display: none; padding-left: 20px; width: calc(100% - 20px)">
-                                            <!-- 自定义API设置 -->
-                                            <input type="text" id="custom_api_url" class="text_pole"
-                                                placeholder="API URL（请以/v1结尾）">
-                                            <input type="password" id="custom_api_key" class="text_pole"
-                                                placeholder="API Key(多个key用逗号隔开)">
-                                            <input type="text" id="custom_model_name" class="text_pole"
-                                                placeholder="Model Name（模型名称，可手动输入或自动获取）">
-                                            <div class="range-block justifyLeft">
-                                                <select id="model_selector" class="text_pole">
-                                                    <option value="">请先获取模型列表</option>
-                                                </select>
-                                                <div class="menu_button menu_button_icon" id="fetch_models_button">
-                                                    <a>获取模型列表</a>
-                                                </div>
-                                                <div class="menu_button menu_button_icon" id="table_test_api_button"
-                                                    style="margin-left: 5px;">
-                                                    <a>测试</a>
-                                                </div>
-                                            </div>
-                                            <div class="flex-container slider-container"
-                                                style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
-                                                <label
-                                                    style="min-width: 140px; margin: 0; white-space: nowrap; flex-shrink: 0;"
-                                                    data-i18n="Custom API temperature setting">自定义API温度设定：<span
-                                                        id="custom_temperature_value">1.0</span></label>
-                                                <input type="range" id="custom_temperature" min="0.1" max="2.0"
-                                                    step="0.1" value="1.0" style="flex-grow: 1;">
-                                            </div>
-                                            <!-- 修复 #162/#193：自定义 API 输出 token 上限（max_tokens） -->
-                                            <div class="flex-container"
-                                                style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
-                                                <label
-                                                    style="min-width: 140px; margin: 0; white-space: nowrap; flex-shrink: 0;"
-                                                    data-i18n="Custom API max output tokens setting">自定义API输出上限
-                                                    (max_tokens)：</label>
-                                                <input type="number" id="custom_max_tokens" class="text_pole" min="128"
-                                                    max="128000" step="128" style="width: 160px; flex-shrink: 0;"
-                                                    data-i18n="[placeholder]Max output tokens for custom API">
-                                                <small style="color: var(--SmartThemeEmColor);">输出 token 上限，过大或超过模型输出窗口会导致 API 报错。留空则自动使用默认值。</small>
-                                            </div>
+                                        <div class="flex-container slider-container"
+                                            style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
+                                            <label
+                                                style="min-width: 140px; margin: 0; white-space: nowrap; flex-shrink: 0;"
+                                                data-i18n="Custom API temperature setting">自定义API温度设定：<span
+                                                    id="custom_temperature_value">1.0</span></label>
+                                            <input type="range" id="custom_temperature" min="0.1" max="2.0"
+                                                step="0.1" value="1.0" style="flex-grow: 1;">
+                                        </div>
+                                        <!-- 修复 #162/#193：自定义 API 输出 token 上限（max_tokens） -->
+                                        <div class="flex-container"
+                                            style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
+                                            <label
+                                                style="min-width: 140px; margin: 0; white-space: nowrap; flex-shrink: 0;"
+                                                data-i18n="Custom API max output tokens setting">自定义API输出上限
+                                                (max_tokens)：</label>
+                                            <input type="number" id="custom_max_tokens" class="text_pole" min="128"
+                                                max="128000" step="128" style="width: 160px; flex-shrink: 0;"
+                                                data-i18n="[placeholder]Max output tokens for custom API">
+                                            <small style="color: var(--SmartThemeEmColor);">输出 token 上限，过大或超过模型输出窗口会导致 API 报错。留空则自动使用默认值。</small>
+                                        </div>
 
-                                            <!-- 代理设置 -->
-                                            <div class="inline-drawer wide100p">
-                                                <div class="inline-drawer-toggle inline-drawer-header">
-                                                    <b><span data-i18n="Proxy settings">代理设置<span
-                                                                style="color: red">(未完成，不能用，请留空)</span></b>
-                                                    <div class="fa-solid inline-drawer-icon interactable up fa-circle-chevron-up"
-                                                        tabindex="0"></div>
-                                                </div>
-                                                <div class="inline-drawer-content"
-                                                    style="display: none; padding-left: 20px; width: calc(100% - 20px)">
-                                                    <input type="text" id="table_proxy_address" class="text_pole"
-                                                        placeholder="代理地址 (例如：http://127.0.0.1:7890)"
-                                                        data-i18n="[placeholder]Proxy address (e.g., http://127.0.0.1:7890)">
-                                                    <input type="password" id="table_proxy_key" class="text_pole"
-                                                        placeholder="代理密钥 (可选)"
-                                                        data-i18n="[placeholder]Proxy key (optional)">
-                                                </div>
+                                        <!-- 代理设置 -->
+                                        <div class="inline-drawer wide100p">
+                                            <div class="inline-drawer-toggle inline-drawer-header">
+                                                <b><span data-i18n="Proxy settings">代理设置<span
+                                                            style="color: red">(未完成，不能用，请留空)</span></b>
+                                                <div class="fa-solid inline-drawer-icon interactable up fa-circle-chevron-up"
+                                                    tabindex="0"></div>
+                                            </div>
+                                            <div class="inline-drawer-content"
+                                                style="display: none; padding-left: 20px; width: calc(100% - 20px)">
+                                                <input type="text" id="table_proxy_address" class="text_pole"
+                                                    placeholder="代理地址 (例如：http://127.0.0.1:7890)"
+                                                    data-i18n="[placeholder]Proxy address (e.g., http://127.0.0.1:7890)">
+                                                <input type="password" id="table_proxy_key" class="text_pole"
+                                                    placeholder="代理密钥 (可选)"
+                                                    data-i18n="[placeholder]Proxy key (optional)">
                                             </div>
                                         </div>
                                     </div>
