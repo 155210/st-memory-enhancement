@@ -1,5 +1,6 @@
 import { V2 } from '../../core/v2keys.js';
 import {BASE, DERIVED, EDITOR, SYSTEM, USER} from '../../core/manager.js';
+import { runSummaryAfterFill } from '../../core/summaryManager.js';
 import { executeIncrementalUpdateFromSummary } from "./absoluteRefresh.js";
 import { newPopupConfirm } from '../../components/popupConfirm.js';
 import { reloadCurrentChat } from "/script.js"
@@ -210,6 +211,9 @@ export async function manualSummaryChat(todoChats, confirmResult, swipeUid = '')
             chat[V2.twoStepLinks][chatSwipeUid].push(swipeUid);   // 标记已执行的两步总结
         });
         toBeExecuted = [];
+
+        // v2：分步填表后同样检查要不要写大总结、压缩
+        await runSummaryAfterFill(referencePiece);
 
         // 保存并刷新UI
         await USER.saveChat();

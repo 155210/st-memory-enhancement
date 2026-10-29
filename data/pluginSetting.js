@@ -140,6 +140,16 @@ export const defaultSettings = await switchLanguage('__defaultSettings__', {
     isAiReadTable: true,
     // 是否写表
     isAiWriteTable: true,
+    // v2：大总结交给程序管（事件满了写大总结，大总结多了逐级压缩，旧事按人名召回）
+    v2_summary_enabled: true,
+    v2_summary_event_table: '事件历史',
+    v2_summary_table: '大总结',
+    v2_summary_archive_table: '总结归档',
+    v2_summary_event_threshold: 20,
+    v2_summary_batch: 10,
+    v2_summary_keep: 3,
+    v2_summary_recall_count: 5,
+    v2_summary_recall_depth: 3,
     // 预留
     updateIndex:3,
     /**

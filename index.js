@@ -1,6 +1,7 @@
 import { V2 } from './core/v2keys.js';
 import { findRowByName, isNameKeyedSheet, mergeDuplicateRows, mergeNameCells, writeRowValues } from './core/rowIdentity.js';
 import { syncChatSheetsWithTemplates } from './core/templateSync.js';
+import { annotateRelativeDates, buildRecallBlock, currentStoryDate, isArchiveSheet, migrateOldSummaries, runSummaryAfterFill, shouldIgnoreAiEdit, summaryConfig } from './core/summaryManager.js';
 import { APP, BASE, DERIVED, EDITOR, SYSTEM, USER } from './core/manager.js';
 import { openTableRendererPopup, updateSystemMessageTableStatus } from "./scripts/renderer/tablePushToChat.js";
 import { loadSettings } from "./scripts/settings/userExtensionSetting.js";
@@ -23,7 +24,7 @@ import { findActiveOriginal, importOriginalSettingsOnce, offerChatImport, import
 
 console.log("______________________记忆插件：开始加载______________________")
 
-const VERSION = '2.2.19-v2.0'
+const VERSION = '2.2.19-v2.1'
 // v2 的版本检查地址（v2 单独一个仓库，和原版的更新提示互不干扰）
 const V2_MANIFEST_URL = 'https://raw.githubusercontent.com/155210/st-memory-enhancement-v2/refs/heads/master/manifest.json'
 
@@ -209,13 +210,26 @@ export function getTablePrompt(eventData, isPureData = false) {
  */
 export function getTablePromptByPiece(piece, isPureData = false) {
     const hash_sheets = BASE.getPieceHash(piece)
-    const sheets = BASE.hashSheetsToSheets(hash_sheets)
+    const allSheets = BASE.hashSheetsToSheets(hash_sheets)
+    // 归档表只用来召回，不整张发（它排在最后，前面表格的序号不变）
+    const sheets = allSheets
         .filter(sheet => sheet.enable)
-        .filter(sheet => sheet.sendToContext !== false);
+        .filter(sheet => sheet.sendToContext !== false)
+        .filter(sheet => !isArchiveSheet(sheet));
     console.log("构建提示词时的信息 (已过滤)", hash_sheets, sheets)
     const customParts = isPureData ? ['title', 'headers', 'rows'] : ['title', 'node', 'headers', 'rows', 'editRules'];
-    const sheetDataPrompt = sheets.map((sheet, index) => sheet.getTableText(index, customParts, piece)).join('\n')
-    return sheetDataPrompt
+    if (isPureData || !summaryConfig().enabled) {
+        return sheets.map((sheet, index) => sheet.getTableText(index, customParts, piece)).join('\n')
+    }
+    // v2：大总结里的日期标上「几天前」（M8），末尾附上按人名找回的旧事（M5）
+    const now = currentStoryDate(allSheets)
+    const summaryName = summaryConfig().summaryTable
+    const sheetDataPrompt = sheets.map((sheet, index) => {
+        const text = sheet.getTableText(index, customParts, piece)
+        return sheet.name === summaryName ? annotateRelativeDates(text, now) : text
+    }).join('\n')
+    const recall = buildRecallBlock(allSheets)
+    return recall ? `${sheetDataPrompt}\n${annotateRelativeDates(recall, now)}` : sheetDataPrompt
 }
 
 /**
@@ -397,8 +411,10 @@ export function parseTableEditTag(piece, mesIndex = -1, ignoreCheck = false) {
     const { piece: prePiece } = mesIndex === -1 ? BASE.getLastSheetsPiece(1) : BASE.getLastSheetsPiece(mesIndex - 1, 1000, false)
     const sheets = BASE.hashSheetsToSheets(BASE.getPieceHash(prePiece)).filter(sheet => sheet.enable)
     console.log("执行指令时的信息", sheets)
+    // 最新一层：程序管大总结时，不执行 AI 对大总结的增删和对事件历史的删除；重建老楼层照旧执行
+    const live = mesIndex === -1
     for (const EditAction of sortActions(tableEditActions)) {
-        executeAction(EditAction, sheets)
+        executeAction(EditAction, sheets, { live })
     }
     sheets.forEach(sheet => sheet.save(piece, true))
     console.log("聊天模板：", BASE.sheetsData.context)
@@ -444,12 +460,16 @@ export function executeTableEditActions(matches, referencePiece) {
 /**
  * 执行单个action指令
  */
-function executeAction(EditAction, sheets) {
+function executeAction(EditAction, sheets, options = {}) {
     const action = EditAction.action
     const sheet = sheets[action.tableIndex]
     if (!sheet) {
         console.error("表格不存在，无法执行编辑操作", EditAction);
         return -1;
+    }
+    if (options.live && shouldIgnoreAiEdit(sheet, EditAction.type)) {
+        console.log("大总结由程序维护，跳过 AI 的这条指令", EditAction);
+        return;
     }
 
     // 在所有操作前，深度清理一次action.data
@@ -473,13 +493,13 @@ function executeAction(EditAction, sheets) {
                     if (found.ambiguous.length) return reportRowIdentity(sheet, `外号「${incomingName}」同时对上了 ${found.ambiguous.join('、')}，这条更新已跳过`)
                     if (found.rowIndex !== -1) rowIndex = found.rowIndex
                     // 表里没有这个人：当作新角色插入，不去改行号指向的另一个人
-                    else return executeAction({...EditAction, type:'insert'}, sheets)
+                    else return executeAction({...EditAction, type:'insert'}, sheets, options)
                 }
             } else if (!hasRowIndex) {
                 // 漏写行号又没法按名字找时，不再默认改第 0 行（P3）
                 return reportRowIdentity(sheet, `updateRow 没写行号，已跳过：${JSON.stringify(action.data)}`)
             }
-            if(rowIndex >= dataRowCount) return executeAction({...EditAction, type:'insert'}, sheets)
+            if(rowIndex >= dataRowCount) return executeAction({...EditAction, type:'insert'}, sheets, options)
             writeRowValues(sheet, rowIndex, action.data, keyedByName)
             break
         }
@@ -803,6 +823,8 @@ async function onMessageReceived(chat_id) {
         console.log("收到消息", chat_id)
         try {
             handleEditStrInMessage(chat)
+            // 事件满了、大总结多了：另发请求整理，不等它，整理完再刷新
+            runSummaryAfterFill(chat).then(log => { if (log.length) updateSheetsView() })
         } catch (error) {
             EDITOR.error("记忆插件：表格自动更改失败\n原因：", error.message, error)
         }
@@ -1153,6 +1175,23 @@ jQuery(async () => {
         USER.saveChat()
         await updateSheetsView()
         EDITOR.success('已把模板同步到本聊天')
+    })
+    // 老档迁移：已有的大总结补上层级/楼层范围/涉及角色，再按设置压缩
+    $(document).on('click', '#table_v2_migrate_summary_button', async function () {
+        const config = summaryConfig()
+        if (!config.enabled) return EDITOR.error('先在设置里打开「大总结交给程序管」')
+        const preview = await migrateOldSummaries(true)
+        if (preview.missing.length) return EDITOR.error(`还缺：${preview.missing.join('、')}。请先导入 v2 模板并点「同步模板到本聊天」`)
+        const groups = Math.max(0, Math.floor((preview.total - config.keep) / config.batch))
+        const ok = await EDITOR.callGenericPopup(`「${config.summaryTable}」现在有 ${preview.total} 条。<br><br>整理时：空着的层级填「大」、楼层范围填「迁移前」、涉及角色按人名表自动找；然后每 ${config.batch} 条压成一条「卷」，最近 ${config.keep} 条不压，大约要另发 ${groups} 次以上请求。<br>被压掉的原文一字不改移进「${config.archiveTable}」，结果存到最新一层，之前楼层不变，可以回退。`, EDITOR.POPUP_TYPE.CONFIRM, '整理旧大总结', { okButton: '开始整理', cancelButton: '取消' })
+        if (!ok) return
+        try {
+            const result = await migrateOldSummaries()
+            await updateSheetsView()
+            EDITOR.success(`补全了 ${result.filled} 条；${result.log.length ? result.log.join('；') : '条数不够，没有压缩'}`)
+        } catch (error) {
+            EDITOR.error('整理旧大总结失败，补全的列已保存，压缩可以再点一次', error.message, error)
+        }
     })
     // 点击打开查看表格日志按钮
     $(document).on('click', '#table_debug_log_button', function () {
