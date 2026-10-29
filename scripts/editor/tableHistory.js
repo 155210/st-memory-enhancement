@@ -127,7 +127,7 @@ function scrollToBottom(container) {
 async function updateTableHistoryData(container) {
     const { piece, deep } = BASE.getLastSheetsPiece();
     const sheetsData = BASE.getChatSheets();
-    if (!piece || !piece.hash_sheets) return;
+    if (!piece || !BASE.getPieceHash(piece)) return;
 
     // 获取内容容器
     const contentContainer = $(container).find('.table-history-content');

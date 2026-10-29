@@ -1,3 +1,17 @@
+# 记忆增强表格 v2（自用改造版）
+
+基于 [muyoou/st-memory-enhancement](https://github.com/muyoou/st-memory-enhancement) 2.2.19 改造，可以和原版同时安装：
+
+- 在酒馆「安装扩展」里填 `https://github.com/155210/st-memory-enhancement-v2` 安装，文件夹名是 `st-memory-enhancement-v2`，不会覆盖原版。
+- 两个都启用时 v2 会暂停并提示；在扩展管理里关掉一个、刷新页面即可切换。
+- v2 的设置、模板、聊天表格数据和每层快照都存在自己的键下（带 `_v2`），从不改动原版的数据。
+- 第一次运行时会复制一份原版的设置和模板；打开只有原版表格的聊天时，会询问是否导入。导入只复制原版最新的表格，导入前的楼层回退时只读原版快照。
+- 设置面板里的「从原版导入」按钮可以随时重新导入当前聊天。
+
+以下是原版说明。
+
+---
+
 <div align="center">
 <h1>✨ SillyTavern 酒馆记忆增强表格插件 ✨</h1>
 

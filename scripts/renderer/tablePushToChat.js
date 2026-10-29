@@ -376,7 +376,7 @@ export function updateSystemMessageTableStatus(force = false) {
         }
     }
     // console.log("更新最后一条 System ")
-    const sheets = BASE.hashSheetsToSheets(BASE.getLastSheetsPiece()?.piece.hash_sheets);
+    const sheets = BASE.hashSheetsToSheets(BASE.getPieceHash(BASE.getLastSheetsPiece()?.piece));
 
     replaceTableToStatusTag(sheets);
 }
@@ -385,7 +385,7 @@ export function updateSystemMessageTableStatus(force = false) {
  */
 export function updateAlternateTable() {
 
-    const sheets = BASE.hashSheetsToSheets(BASE.getLastSheetsPiece()?.piece.hash_sheets);
+    const sheets = BASE.hashSheetsToSheets(BASE.getPieceHash(BASE.getLastSheetsPiece()?.piece));
 
     replaceTableToStatusTag(sheets);
 }
@@ -397,7 +397,7 @@ export function updateAlternateTable() {
 export async function openTableRendererPopup() {
     const manager = await SYSTEM.getTemplate('customSheetStyle');
     const tableRendererPopup = new EDITOR.Popup(manager, EDITOR.POPUP_TYPE.TEXT, '', { large: true, wide: true, allowVerticalScrolling: true });
-    const sheetsData = BASE.getLastSheetsPiece()?.piece.hash_sheets;
+    const sheetsData = BASE.getPieceHash(BASE.getLastSheetsPiece()?.piece);
     if (!sheetsData) {
         // console.warn("openTableRendererPopup: 未能获取到有效的 table 对象。");
         return;

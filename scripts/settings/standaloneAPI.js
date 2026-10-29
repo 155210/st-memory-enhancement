@@ -675,13 +675,13 @@ export function ext_getAllTables() {
     
     // 1. 获取最新的 piece
     const { piece } = BASE.getLastSheetsPiece();
-    if (!piece || !piece.hash_sheets) {
+    if (!piece || !BASE.getPieceHash(piece)) {
         console.warn("[Memory Enhancement] ext_getAllTables: 未找到任何有效的表格数据。");
         return [];
     }
 
     // 2. 基于最新的 hash_sheets 创建/更新 Sheet 实例
-    const tables = BASE.hashSheetsToSheets(piece.hash_sheets);
+    const tables = BASE.hashSheetsToSheets(BASE.getPieceHash(piece));
     if (!tables || tables.length === 0) {
         return [];
     }
@@ -714,12 +714,12 @@ export function ext_exportAllTablesAsJson() {
     // 最终、最稳妥的方案：确保输入给 JSON.stringify 的数据是纯净的。
 
     const { piece } = BASE.getLastSheetsPiece();
-    if (!piece || !piece.hash_sheets) {
+    if (!piece || !BASE.getPieceHash(piece)) {
         console.warn("[Memory Enhancement] ext_exportAllTablesAsJson: 未找到任何有效的表格数据。");
         return {};
     }
 
-    const tables = BASE.hashSheetsToSheets(piece.hash_sheets);
+    const tables = BASE.hashSheetsToSheets(BASE.getPieceHash(piece));
     if (!tables || tables.length === 0) {
         return {};
     }

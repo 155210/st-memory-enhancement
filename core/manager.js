@@ -1,3 +1,4 @@
+import { V2, ORIGINAL, EXTENSION_FOLDER } from './v2keys.js';
 import { TTable } from "./tTableManager.js";
 import applicationFunctionManager from "../services/appFuncManager.js";
 // 移除旧表格系统引用
@@ -18,6 +19,19 @@ import {taskTiming} from "../utils/system.js";
 import {updateSelectBySheetStatus} from "../scripts/editor/tableTemplateEditView.js";
 
 let derivedData = {}
+
+// 消息对象 → 楼层号的缓存，聊天数组或长度变化时重建，避免每次回退判断都遍历整段聊天
+let pieceIndexCache = { chat: null, length: -1, map: new Map() }
+function getPieceIndex(piece) {
+    const chat = APP.getContext().chat
+    if (!chat) return -1
+    if (pieceIndexCache.chat !== chat || pieceIndexCache.length !== chat.length) {
+        const map = new Map()
+        chat.forEach((p, i) => map.set(p, i))
+        pieceIndexCache = { chat, length: chat.length, map }
+    }
+    return pieceIndexCache.map.get(piece) ?? -1
+}
 
 export const APP = applicationFunctionManager
 
@@ -79,18 +93,18 @@ export const USER = {
         return {piece:chat[index], deep: index};
     },
     loadUserAllTemplates() {
-        let templates = USER.getSettings().table_database_templates;
+        let templates = USER.getSettings()[V2.templates];
         if (!Array.isArray(templates)) {
             templates = [];
-            USER.getSettings().table_database_templates = templates;
+            USER.getSettings()[V2.templates] = templates;
             USER.saveSettings();
         }
         console.log("全局模板", templates)
         return templates;
     },
-    tableBaseSetting: createProxyWithUserSetting('muyoo_dataTable'),
+    tableBaseSetting: createProxyWithUserSetting(V2.settings),
     tableBaseDefaultSettings: { ...defaultSettings },
-    IMPORTANT_USER_PRIVACY_DATA: createProxyWithUserSetting('IMPORTANT_USER_PRIVACY_DATA', true),
+    IMPORTANT_USER_PRIVACY_DATA: createProxyWithUserSetting(V2.privacy, true),
 }
 
 
@@ -123,10 +137,10 @@ export const BASE = {
                     if (!USER.getContext().chatMetadata) {
                         USER.getContext().chatMetadata = {};
                     }
-                    if (!USER.getContext().chatMetadata.sheets) {
-                        USER.getContext().chatMetadata.sheets = [];
+                    if (!USER.getContext().chatMetadata[V2.chatSheets]) {
+                        USER.getContext().chatMetadata[V2.chatSheets] = [];
                     }
-                    return USER.getContext().chatMetadata.sheets;
+                    return USER.getContext().chatMetadata[V2.chatSheets];
                 case 'global':
 
                 case 'role':
@@ -141,7 +155,7 @@ export const BASE = {
                     if (!USER.getContext().chatMetadata) {
                         USER.getContext().chatMetadata = {};
                     }
-                    USER.getContext().chatMetadata.sheets = value;
+                    USER.getContext().chatMetadata[V2.chatSheets] = value;
                     return true;
                 case 'all':
                 case 'global':
@@ -191,6 +205,22 @@ export const BASE = {
         newSheet.loadJson(json);
         DERIVED.any.chatSheetMap[newSheet.uid] = newSheet
         return newSheet
+    },
+    /**
+     * @description 读取某条消息上的表格快照（v2 与原版共存）
+     * @description 优先读 v2 自己的快照；从原版导入过的聊天，导入那一层及更早的楼层没有 v2 快照，只读回退到原版快照
+     * @param {Object} piece 聊天消息
+     * @returns {Object|undefined} 形如 { sheetUid: hashSheet } 的快照
+     */
+    getPieceHash(piece) {
+        if (!piece) return undefined
+        if (piece[V2.pieceHash]) return piece[V2.pieceHash]
+        const original = piece[ORIGINAL.pieceHash]
+        if (!original) return undefined
+        const importInfo = USER.getContext().chatMetadata?.[V2.chatImport]
+        if (!importInfo) return undefined
+        const index = getPieceIndex(piece)
+        return index !== -1 && index <= importInfo.floor ? original : undefined
     },
     copyHashSheets(hashSheets) {
         const newHashSheet = {}
@@ -253,7 +283,7 @@ export const BASE = {
             direction === 'up' ? (i >= 0 && i >= startIndex - cutoff) : (i < chat.length && i < startIndex + cutoff);
             direction === 'up' ? i-- : i++) {
             if (chat[i].is_user === true) continue; // 跳过用户消息
-            if (chat[i].hash_sheets) {
+            if (BASE.getPieceHash(chat[i])) {
                 console.log("向上查询表格数据，找到表格数据", chat[i])
                 return { deep: i, piece: chat[i] }
             }
@@ -286,15 +316,15 @@ export const BASE = {
     },
     getLastestSheets(){
         const { piece, deep } = BASE.getLastSheetsPiece();
-        if (!piece || !piece.hash_sheets) return
-        return BASE.hashSheetsToSheets(piece.hash_sheets);
+        if (!piece || !BASE.getPieceHash(piece)) return
+        return BASE.hashSheetsToSheets(BASE.getPieceHash(piece));
     },
     initHashSheet(force = false) {
         if (force || (BASE.sheetsData.context.length === 0)) {
             console.log("尝试从模板中构建表格数据")
             const {piece: currentPiece} = USER.getChatPiece()
             buildSheetsByTemplates(currentPiece)
-            if (currentPiece?.hash_sheets) {
+            if (BASE.getPieceHash(currentPiece)) {
                 // console.log('使用模板创建了新的表格数据', currentPiece)
                 return currentPiece
             }
@@ -308,7 +338,7 @@ export const BASE = {
                 hash_sheets[sheet.uid] = []
             }
         })
-        return { hash_sheets }
+        return { [V2.pieceHash]: hash_sheets }
     }
 };
 
@@ -343,13 +373,13 @@ export const EDITOR = {
     clear: () => consoleMessageToEditor.clear(),
     logAll: () => {
         SYSTEM.codePathLog({
-            'user_table_database_setting': USER.getSettings().muyoo_dataTable,
-            'user_tableBase_templates': USER.getSettings().table_database_templates,
+            'user_table_database_setting': USER.getSettings()[V2.settings],
+            'user_tableBase_templates': USER.getSettings()[V2.templates],
             'context': USER.getContext(),
-            'context_chatMetadata_sheets': USER.getContext().chatMetadata?.sheets,
+            'context_chatMetadata_sheets': USER.getContext().chatMetadata?.[V2.chatSheets],
             'context_sheets_data': BASE.sheetsData.context,
             'chat_last_piece': USER.getChatPiece()?.piece,
-            'chat_last_sheet': BASE.getLastSheetsPiece()?.piece.hash_sheets,
+            'chat_last_sheet': BASE.getPieceHash(BASE.getLastSheetsPiece()?.piece),
             'chat_last_old_table': BASE.getLastSheetsPiece()?.piece.dataTable,
         }, 3);
     },
@@ -376,7 +406,7 @@ export const DERIVED = {
 export const SYSTEM = {
     getTemplate: (name) => {
         console.log('getTemplate', name);
-        return APP.renderExtensionTemplateAsync('third-party/st-memory-enhancement/assets/templates', name);
+        return APP.renderExtensionTemplateAsync(`${EXTENSION_FOLDER}/assets/templates`, name);
     },
 
     codePathLog: function (context = '', deep = 2) {

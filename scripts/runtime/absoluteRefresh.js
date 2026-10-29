@@ -229,7 +229,7 @@ export async function rebuildTableActions(force = false, silentUpdate = USER.tab
         if (!piece) {
             throw new Error('findLastestTableData 未返回有效的表格数据');
         }
-        const latestTables = BASE.hashSheetsToSheets(piece.hash_sheets).filter(sheet => sheet.enable);
+        const latestTables = BASE.hashSheetsToSheets(BASE.getPieceHash(piece)).filter(sheet => sheet.enable);
         DERIVED.any.waitingTable = latestTables;
         DERIVED.any.waitingTableIdMap = latestTables.map(table => table.uid);
 
@@ -687,7 +687,7 @@ function fixTableFormat(inputText) {
     }
 }
 
-window.fixTableFormat = fixTableFormat; // 暴露给全局
+window.fixTableFormat ??= fixTableFormat; // 暴露给全局；原版已挂上时不覆盖
 
 /**
  * 修改重整理模板

@@ -1,3 +1,4 @@
+import { V2 } from '../../core/v2keys.js';
 import { BASE, DERIVED, EDITOR, SYSTEM, USER } from '../../core/manager.js';
 import { updateSystemMessageTableStatus } from "../renderer/tablePushToChat.js";
 import { findNextChatWhitTableData, undoSheets } from "../../index.js";
@@ -172,11 +173,13 @@ async function clearTable(mesId, viewSheetsContainer) {
     const confirmation = await EDITOR.callGenericPopup('清空当前对话的所有表格数据，并重置历史记录，该操作无法回退，是否继续？', EDITOR.POPUP_TYPE.CONFIRM, '', { okButton: "继续", cancelButton: "取消" });
     if (confirmation) {
         await USER.getContext().chat.forEach((piece => {
-            if (piece.hash_sheets) {
-                delete piece.hash_sheets
+            // 只清 v2 自己的数据，原版的 hash_sheets / dataTable 不动
+            if (piece[V2.pieceHash]) {
+                delete piece[V2.pieceHash]
             }
-            if (piece.dataTable) delete piece.dataTable
         }))
+        // 清空后不再回读导入前楼层的原版快照
+        delete USER.getContext().chatMetadata[V2.chatImport]
         setTimeout(() => {
             USER.saveSettings()
             USER.saveChat();
@@ -554,13 +557,13 @@ async function renderSheetsDOM(mesId = -1) {
     task.log()
     const { deep: lastestDeep, piece: lastestPiece } = BASE.getLastSheetsPiece()
     const { piece, deep } = mesId === -1 ? { piece: lastestPiece, deep: lastestDeep } : { piece: USER.getContext().chat[mesId], deep: mesId }
-    if (!piece || !piece.hash_sheets) return;
+    if (!piece || !BASE.getPieceHash(piece)) return;
 
     if (deep === lastestDeep) DERIVED.any.isRenderLastest = true;
     else DERIVED.any.isRenderLastest = false;
     DERIVED.any.renderDeep = deep;
 
-    const sheets = BASE.hashSheetsToSheets(piece.hash_sheets);
+    const sheets = BASE.hashSheetsToSheets(BASE.getPieceHash(piece));
     sheets.forEach((sheet) => {
         sheet.hashSheet = sheet.hashSheet.filter((row) => {
             return (sheet.cells.get(row[0])?.isDeleted !== true);

@@ -15,11 +15,14 @@ import applicationFunctionManager from "./services/appFuncManager.js"
 import {SheetBase} from "./core/table/base.js";
 import { Cell } from "./core/table/cell.js";
 import { initExternalDataAdapter } from './external-data-adapter.js';
+import { findActiveOriginal, importOriginalSettingsOnce, offerChatImport, importChatFromOriginal } from './core/v2coexist.js';
 
 
 console.log("______________________记忆插件：开始加载______________________")
 
-const VERSION = '2.2.19'
+const VERSION = '2.2.19-v2.0'
+// v2 的版本检查地址（v2 单独一个仓库，和原版的更新提示互不干扰）
+const V2_MANIFEST_URL = 'https://raw.githubusercontent.com/155210/st-memory-enhancement-v2/refs/heads/master/manifest.json'
 
 const editErrorInfo = {
     forgotCommentTag: false,
@@ -202,7 +205,7 @@ export function getTablePrompt(eventData, isPureData = false) {
  * @returns {string} 表格相关提示词
  */
 export function getTablePromptByPiece(piece, isPureData = false) {
-    const {hash_sheets} = piece
+    const hash_sheets = BASE.getPieceHash(piece)
     const sheets = BASE.hashSheetsToSheets(hash_sheets)
         .filter(sheet => sheet.enable)
         .filter(sheet => sheet.sendToContext !== false);
@@ -389,7 +392,7 @@ export function parseTableEditTag(piece, mesIndex = -1, ignoreCheck = false) {
 
     // 获取上一个表格数据
     const { piece: prePiece } = mesIndex === -1 ? BASE.getLastSheetsPiece(1) : BASE.getLastSheetsPiece(mesIndex - 1, 1000, false)
-    const sheets = BASE.hashSheetsToSheets(prePiece.hash_sheets).filter(sheet => sheet.enable)
+    const sheets = BASE.hashSheetsToSheets(BASE.getPieceHash(prePiece)).filter(sheet => sheet.enable)
     console.log("执行指令时的信息", sheets)
     for (const EditAction of sortActions(tableEditActions)) {
         executeAction(EditAction, sheets)
@@ -410,7 +413,7 @@ export function executeTableEditActions(matches, referencePiece) {
     tableEditActions.forEach((action, index) => tableEditActions[index].action = classifyParams(formatParams(action.param)))
     console.log("解析到的表格编辑指令", tableEditActions)
 
-    // 核心修复：不再信任传入的 referencePiece.hash_sheets，而是直接从 BASE 获取当前激活的、唯一的 Sheet 实例。
+    // 核心修复：不再信任传入的 referencePiece 上的快照，而是直接从 BASE 获取当前激活的、唯一的 Sheet 实例。
     const sheets = BASE.getChatSheets().filter(sheet => sheet.enable)
     if (!sheets || sheets.length === 0) {
         console.error("executeTableEditActions: 未找到任何启用的表格实例，操作中止。");
@@ -804,6 +807,9 @@ function resolveTableMacros(text) {
  */
 async function onChatChanged() {
     try {
+        // 只有原版数据的聊天，先问要不要导入 v2
+        await offerChatImport();
+
         // 更新表格视图
         updateSheetsView();
 
@@ -813,9 +819,9 @@ async function onChatChanged() {
         let hasAnyTableData = false;
         const chat = USER.getContext().chat;
         for (const msg of chat) {
-            if (msg.hash_sheets) {
-                for (const sheet_id in msg.hash_sheets) {
-                    if (msg.hash_sheets[sheet_id].length > 1) {
+            if (BASE.getPieceHash(msg)) {
+                for (const sheet_id in BASE.getPieceHash(msg)) {
+                    if (BASE.getPieceHash(msg)[sheet_id].length > 1) {
                         hasAnyTableData = true;
                         break;
                     }
@@ -920,6 +926,17 @@ export function isDrawerNewVersion() {
 }
 
 jQuery(async () => {
+    // 原版也启用着时 v2 整个暂停：不挂界面、不注册宏、不监听事件，避免两个插件同时填表、互相覆盖界面
+    const activeOriginal = findActiveOriginal();
+    if (activeOriginal) {
+        console.warn("[记忆增强 v2] 检测到原版也启用着，v2 已暂停：", activeOriginal)
+        toastr.warning('原版「记忆增强表格」也启用着，v2 已暂停。<br>请在扩展管理里关掉其中一个，然后刷新页面。', '记忆增强表格 v2', { timeOut: 15000, escapeHtml: false })
+        return
+    }
+
+    // 首次运行时复制原版的设置和模板（只复制，不改原版）
+    importOriginalSettingsOnce();
+
     // 注册API
     window.stMemoryEnhancement = {
         ext_getAllTables,
@@ -936,7 +953,7 @@ jQuery(async () => {
     }
 
     // 版本检查
-    fetch("https://raw.githubusercontent.com/muyoou/st-memory-enhancement/refs/heads/master/manifest.json", {
+    fetch(V2_MANIFEST_URL, {
         method: "GET",
         cache: "no-cache"
     }).then(res => res.json()).then(res => {
@@ -950,7 +967,7 @@ jQuery(async () => {
                 $("#table_message_tip").html("插件已升级到" + VERSION + "最新版。如果插件对您有帮助，可以给我们的Github仓库一个星星支持下我们~ 交流&更新&Bug反馈群QQ 1030109849")
             }
         }
-    })
+    }).catch(error => console.warn("[记忆增强 v2] 版本检查失败", error))
 
     $('.extraMesButtons').append('<div title="查看表格" class="mes_button open_table_by_id">表格</div>');
 
@@ -1046,6 +1063,15 @@ jQuery(async () => {
     // 点击表格渲染样式设置按钮
     $(document).on('click', '.tableEditor_renderButton', function () {
         openTableRendererPopup();
+    })
+    // 手动从原版导入当前聊天的表格
+    $(document).on('click', '#table_v2_import_original_button', async function () {
+        const ok = await EDITOR.callGenericPopup('把原版在这个聊天里的表格复制一份到 v2。<br>v2 在这个聊天里已有的数据会被替换；原版的数据不会改动。', EDITOR.POPUP_TYPE.CONFIRM, '从原版导入', { okButton: '导入', cancelButton: '取消' });
+        if (!ok) return
+        if (importChatFromOriginal()) {
+            await updateSheetsView()
+            EDITOR.success('已从原版导入表格')
+        }
     })
     // 点击打开查看表格日志按钮
     $(document).on('click', '#table_debug_log_button', function () {

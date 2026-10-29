@@ -1,3 +1,4 @@
+import { EXTENSION_FOLDER } from '../core/v2keys.js';
 import applicationFunctionManager from "./appFuncManager.js";
 
 let _lang = undefined;
@@ -10,7 +11,7 @@ let _translations = undefined;
  */
 async function fetchTranslations(locale) {
     try {
-        const response = await fetch(`/scripts/extensions/third-party/st-memory-enhancement/assets/locales/${locale}.json`);
+        const response = await fetch(`/scripts/extensions/${EXTENSION_FOLDER}/assets/locales/${locale}.json`);
         if (!response.ok) {
             console.warn(`Could not load translations for ${locale}, falling back to zh-cn`);
             // Fallback to Chinese if requested locale is not available

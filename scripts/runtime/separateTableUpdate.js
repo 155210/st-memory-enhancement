@@ -1,3 +1,4 @@
+import { V2 } from '../../core/v2keys.js';
 import {BASE, DERIVED, EDITOR, SYSTEM, USER} from '../../core/manager.js';
 import { executeIncrementalUpdateFromSummary } from "./absoluteRefresh.js";
 import { newPopupConfirm } from '../../components/popupConfirm.js';
@@ -19,12 +20,12 @@ function InitChatForTableTwoStepSummary(chat) {
         chat.uid = SYSTEM.generateRandomString(22);
     }
     // 如果currentPiece.uid_that_references_table_step_update未定义，则初始化为{}
-    if (chat.two_step_links === undefined) {
-        chat.two_step_links = {};
+    if (chat[V2.twoStepLinks] === undefined) {
+        chat[V2.twoStepLinks] = {};
     }
     // 如果currentPiece.uid_that_references_table_step_update未定义，则初始化为{}
-    if (chat.two_step_waiting === undefined) {
-        chat.two_step_waiting = {};
+    if (chat[V2.twoStepWaiting] === undefined) {
+        chat[V2.twoStepWaiting] = {};
     }
 }
 
@@ -39,8 +40,8 @@ function getSwipeUid(chat) {
     // 获取当前swipe的唯一标识符
     const swipeUid = `${chat.uid}_${chat.swipe_id}`;
     // 检查当前swipe是否已经存在必要的数据结构
-    if (!(swipeUid in chat.two_step_links)) chat.two_step_links[swipeUid] = [];
-    if (!(swipeUid in chat.two_step_waiting)) chat.two_step_waiting[swipeUid] = true;
+    if (!(swipeUid in chat[V2.twoStepLinks])) chat[V2.twoStepLinks][swipeUid] = [];
+    if (!(swipeUid in chat[V2.twoStepWaiting])) chat[V2.twoStepWaiting][swipeUid] = true;
     return swipeUid;
 }
 
@@ -52,7 +53,7 @@ function getSwipeUid(chat) {
  */
 function checkIfChatIsExecuted(chat, targetSwipeUid) {
     const chatSwipeUid = getSwipeUid(chat); // 获取当前chat的唯一标识符
-    const chatExecutedSwipes = chat.two_step_links[chatSwipeUid]; // 获取当前chat已经执行过的父级chat
+    const chatExecutedSwipes = chat[V2.twoStepLinks][chatSwipeUid]; // 获取当前chat已经执行过的父级chat
     return chatExecutedSwipes.includes(targetSwipeUid);   // 检查当前chat是否已经被目标chat执行过
 }
 
@@ -69,9 +70,9 @@ function handleMessages(string) {
 
 function MarkChatAsWaiting(chat, swipeUid) {
     console.log(USER.getContext().chat);
-    console.log('chat.two_step_links:',chat.two_step_links);
-    console.log('chat.two_step_waiting:',chat.two_step_waiting);
-    chat.two_step_waiting[swipeUid] = true;
+    console.log('chat[V2.twoStepLinks]:',chat[V2.twoStepLinks]);
+    console.log('chat[V2.twoStepWaiting]:',chat[V2.twoStepWaiting]);
+    chat[V2.twoStepWaiting][swipeUid] = true;
 }
 
 /**
@@ -158,7 +159,7 @@ export async function manualSummaryChat(todoChats, confirmResult, swipeUid = '')
     }
 
     // 只有当表格中已经有内容时，才执行“撤销并重做”
-    if (initialPiece.hash_sheets && Object.keys(initialPiece.hash_sheets).length > 0) {
+    if (BASE.getPieceHash(initialPiece) && Object.keys(BASE.getPieceHash(initialPiece)).length > 0) {
         console.log('[Memory Enhancement] 立即填表：检测到表格中有数据，执行恢复操作...');
         try {
             await undoSheets(0);
@@ -206,7 +207,7 @@ export async function manualSummaryChat(todoChats, confirmResult, swipeUid = '')
         // 由于直接在 referencePiece 引用上操作，修改已自动同步，无需手动回写 hash_sheets。
         toBeExecuted.forEach(chat => {
             const chatSwipeUid = getSwipeUid(chat);
-            chat.two_step_links[chatSwipeUid].push(swipeUid);   // 标记已执行的两步总结
+            chat[V2.twoStepLinks][chatSwipeUid].push(swipeUid);   // 标记已执行的两步总结
         });
         toBeExecuted = [];
 

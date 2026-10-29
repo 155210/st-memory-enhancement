@@ -1,4 +1,5 @@
 // tableTemplateEditView.js
+import { V2 } from '../../core/v2keys.js';
 import { BASE, DERIVED, EDITOR, SYSTEM, USER } from '../../core/manager.js';
 import { PopupMenu } from '../../components/popupMenu.js';
 import { Form } from '../../components/formManager.js';
@@ -123,7 +124,7 @@ function updateSelect2Dropdown() {
 
 function initChatScopeSelectedSheets() {
     const newSelectedSheets = BASE.sheetsData.context.map(sheet => sheet.enable ? sheet.uid : null).filter(Boolean)
-    USER.getContext().chatMetadata.selected_sheets = newSelectedSheets
+    USER.getContext().chatMetadata[V2.chatSelectedSheets] = newSelectedSheets
     return newSelectedSheets
 }
 
@@ -416,14 +417,14 @@ function bindCellClickEvent(cell) {
 }
 
 function getSelectedSheetUids() {
-    return scope === 'chat' ? USER.getContext().chatMetadata.selected_sheets ?? initChatScopeSelectedSheets() : USER.getSettings().table_selected_sheets ?? []
+    return scope === 'chat' ? USER.getContext().chatMetadata[V2.chatSelectedSheets] ?? initChatScopeSelectedSheets() : USER.getSettings()[V2.selectedSheets] ?? []
 }
 
 function setSelectedSheetUids(selectedSheets) {
     if (scope === 'chat') {
-        USER.getContext().chatMetadata.selected_sheets = selectedSheets;
+        USER.getContext().chatMetadata[V2.chatSelectedSheets] = selectedSheets;
     } else {
-        USER.getSettings().table_selected_sheets = selectedSheets;
+        USER.getSettings()[V2.selectedSheets] = selectedSheets;
     }
     updateSheetStatusBySelect()
 }

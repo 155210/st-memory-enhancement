@@ -1,3 +1,4 @@
+import { V2 } from '../../core/v2keys.js';
 import {EDITOR, SYSTEM, USER, BASE} from '../../core/manager.js';
 import JSON5 from '../../utils/json5.min.mjs'
 
@@ -193,7 +194,7 @@ export async function openTableDebugLogPopup() {
         const infoData = {
             chatMate: BASE.sheetsData.context,
             lastestSheet: BASE.getLastSheetsPiece(),
-            allHash: USER.getContext().chat.map(chat => chat.hash_sheets ?? null),
+            allHash: USER.getContext().chat.map(chat => BASE.getPieceHash(chat) ?? null),
         };
         const infoDataString = JSON.stringify(infoData, null, 2);
         const blob = new Blob([infoDataString], {type: 'application/json'});
@@ -219,7 +220,7 @@ export async function openTableDebugLogPopup() {
                     const json = JSON.parse(e.target.result);
                     BASE.sheetsData.context = json.chatMate;
                     const lastestPiece = USER.getChatPiece().piece
-                    lastestPiece.hash_sheets = json.lastestSheet.piece.hash_sheets;
+                    lastestPiece[V2.pieceHash] = json.lastestSheet.piece[V2.pieceHash] ?? json.lastestSheet.piece.hash_sheets;
                     console.log('导入的调试信息：', json);
                     USER.saveChat()
                 } catch (error) {

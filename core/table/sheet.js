@@ -1,3 +1,4 @@
+import { V2 } from '../v2keys.js';
 import { BASE, DERIVED, EDITOR, SYSTEM, USER } from '../manager.js';
 import { SheetBase } from "./base.js";
 import { cellStyle, filterSavingData } from "./utils.js";
@@ -41,7 +42,7 @@ export class Sheet extends SheetBase {
         let prevHashSheetsMap = lastCellsHashSheet;
         if (prevHashSheetsMap === null && typeof DERIVED?.any?.renderDeep === 'number' && DERIVED.any.renderDeep !== 0) {
             try {
-                prevHashSheetsMap = BASE.getLastSheetsPiece(DERIVED.any.renderDeep - 1, 3, false)?.piece?.hash_sheets;
+                prevHashSheetsMap = BASE.getPieceHash(BASE.getLastSheetsPiece(DERIVED.any.renderDeep - 1, 3, false)?.piece);
                 if (prevHashSheetsMap) prevHashSheetsMap = BASE.copyHashSheets(prevHashSheetsMap);
             } catch (_) {
                 // 忽略获取失败，保持无高亮
@@ -207,8 +208,9 @@ export class Sheet extends SheetBase {
                 console.log("没有消息能承载hash_sheets数据，不予保存")
                 return this
             }
-            if (!targetPiece.hash_sheets) targetPiece.hash_sheets = {};
-            targetPiece.hash_sheets[this.uid] = this.hashSheet?.map(row => row.map(hash => hash));
+            // 第一次在这层写 v2 数据时，先带上这层已有的（可能来自原版的）其他表格，避免只剩当前这张表
+            if (!targetPiece[V2.pieceHash]) targetPiece[V2.pieceHash] = BASE.copyHashSheets(BASE.getPieceHash(targetPiece) || {});
+            targetPiece[V2.pieceHash][this.uid] = this.hashSheet?.map(row => row.map(hash => hash));
             console.log('保存表格数据', targetPiece, this.hashSheet);
             if (!manualSave) USER.saveChat();
 

@@ -40,8 +40,8 @@ const statistics = `
 async function updataTableStatisticsData(container) {
     const { piece, deep } = BASE.getLastSheetsPiece();
     const sheetsData = BASE.sheetsData.context;
-    if (!piece || !piece.hash_sheets) return;
-    const sheets = BASE.hashSheetsToSheets(piece.hash_sheets);
+    if (!piece || !BASE.getPieceHash(piece)) return;
+    const sheets = BASE.hashSheetsToSheets(BASE.getPieceHash(piece));
     const cellHistories = sheetsData.map(sheet => sheet.cellHistory);
     const sheetDataPrompt = sheets.map((sheet, index) => sheet.getTableText(index)).join('\n')
     const sheetsValueCount = estimateTokenCount(sheetDataPrompt);
@@ -77,8 +77,8 @@ async function clearTableStatisticsButton(statisticsContainer) {
     if (!chat || chat.length === 0) return;
 
     const messageHashSheets = JSON.parse(JSON.stringify(USER.getContext().chat
-        .filter(message => message.hash_sheets)
-        .map(message => message.hash_sheets)));
+        .filter(message => BASE.getPieceHash(message))
+        .map(message => BASE.getPieceHash(message))));
     let hashList = []
     messageHashSheets.forEach(hashSheets => {
         Object.entries(hashSheets).forEach(([sheetId, sheet]) => {

@@ -1,3 +1,4 @@
+import { V2 } from '../../core/v2keys.js';
 import {BASE, DERIVED, EDITOR, SYSTEM, USER} from '../../core/manager.js';
 import {updateSystemMessageTableStatus, updateAlternateTable} from "../renderer/tablePushToChat.js";
 import {rebuildSheets , modifyRebuildTemplate, newRebuildTemplate, deleteRebuildTemplate, exportRebuildTemplate, importRebuildTemplate, triggerStepByStepNow} from "../runtime/absoluteRefresh.js";
@@ -187,9 +188,9 @@ async function importTableSet() {
                         const chatArr = USER.getContext()?.chat || [];
                         let isSheetEmpty = true;
                         for (let i = chatArr.length - 1; i >= 0; i--) {
-                            if (chatArr[i] && Object.prototype.hasOwnProperty.call(chatArr[i], 'hash_sheets')) {
-                                for (const sheet_id in chatArr[i].hash_sheets) {
-                                    if (chatArr[i].hash_sheets[sheet_id].length > 1) {
+                            if (chatArr[i] && BASE.getPieceHash(chatArr[i])) {
+                                for (const sheet_id in BASE.getPieceHash(chatArr[i])) {
+                                    if (BASE.getPieceHash(chatArr[i])[sheet_id].length > 1) {
                                         isSheetEmpty = false;
                                         break;
                                     }
@@ -211,10 +212,11 @@ async function importTableSet() {
                             // 删除聊天列表中所有 piece 的 hash_sheets
                             try {
                                 for (const msg of chatArr) {
-                                    if (msg && Object.prototype.hasOwnProperty.call(msg, 'hash_sheets')) {
-                                        delete msg.hash_sheets;
+                                    if (msg && Object.prototype.hasOwnProperty.call(msg, V2.pieceHash)) {
+                                        delete msg[V2.pieceHash];
                                     }
                                 }
+                                delete USER.getContext().chatMetadata[V2.chatImport];
                             } catch (_) {}
                             // 在当前载体上用全局模板重建
                             buildSheetsByTemplates(piece);
@@ -638,7 +640,7 @@ export function loadSettings() {
 
     // 旧版本提示词变更兼容
     if (USER.tableBaseSetting.updateIndex < 3) {
-        USER.getSettings().message_template = USER.tableBaseDefaultSettings.message_template
+        USER.getSettings()[V2.messageTemplate] = USER.tableBaseDefaultSettings.message_template
         USER.tableBaseSetting.to_chat_container = USER.tableBaseDefaultSettings.to_chat_container
         // USER.tableBaseSetting.tableStructure = USER.tableBaseDefaultSettings.tableStructure
         USER.tableBaseSetting.updateIndex = 3
@@ -662,8 +664,8 @@ export function loadSettings() {
 
 export function initTableStructureToTemplate() {
     const sheetDefaultTemplates = USER.tableBaseSetting.tableStructure
-    USER.getSettings().table_selected_sheets = []
-    USER.getSettings().table_database_templates = [];
+    USER.getSettings()[V2.selectedSheets] = []
+    USER.getSettings()[V2.templates] = [];
     for (let defaultTemplate of sheetDefaultTemplates) {
         const newTemplate = new BASE.SheetTemplate()
         newTemplate.domain = 'global'
@@ -684,7 +686,7 @@ export function initTableStructureToTemplate() {
         newTemplate.source.data.deleteNode = defaultTemplate.deleteNode
         newTemplate.source.data.updateNode = defaultTemplate.updateNode
         newTemplate.source.data.insertNode = defaultTemplate.insertNode
-        USER.getSettings().table_selected_sheets.push(newTemplate.uid)
+        USER.getSettings()[V2.selectedSheets].push(newTemplate.uid)
         newTemplate.save()
     }
     USER.saveSettings()

@@ -141,7 +141,7 @@ async function reloadCellHistory(cell, historyCell, container) {
 function updateCellHistoryData(container, cell) {
     const { piece, deep } = BASE.getLastSheetsPiece();
     const sheetsData = BASE.sheetsData.context;
-    if (!piece || !piece.hash_sheets) return;
+    if (!piece || !BASE.getPieceHash(piece)) return;
 
     // 获取内容容器
     const contentContainer = $(container).find('.cell-history-content');

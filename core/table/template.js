@@ -1,3 +1,4 @@
+import { V2 } from '../v2keys.js';
 import { BASE, DERIVED, EDITOR, SYSTEM, USER } from '../manager.js';
 import {SheetBase} from "./base.js";
 import {cellStyle} from "./utils.js";
@@ -87,7 +88,7 @@ export class SheetTemplate extends SheetBase {
                 templates.push(sheetDataToSave);
             }
             console.log("保存模板数据", templates)
-            USER.getSettings().table_database_templates = templates;
+            USER.getSettings()[V2.templates] = templates;
             if(!manualSave) USER.saveSettings();
             return this;
         } catch (e) {
@@ -101,7 +102,7 @@ export class SheetTemplate extends SheetBase {
      */
     delete() {
         let templates = BASE.templates;
-        USER.getSettings().table_database_templates = templates.filter(t => t.uid !== this.uid);
+        USER.getSettings()[V2.templates] = templates.filter(t => t.uid !== this.uid);
         USER.saveSettings();
         return templates;
     }
