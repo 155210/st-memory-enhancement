@@ -149,6 +149,12 @@
                                 </label>
                                 <small class="toggle-description justifyLeft">(自定义 API 的地址和密钥填在右边「运行策略」下面的「自定义独立API」里。正文还在生成时会先等它生成完再发，不会抢正文的请求)</small>
                             </div>
+                            <div class="checkbox_label range-block justifyLeft" style="flex-wrap: wrap; gap: 4px 8px;">
+                                <input type="checkbox" id="table_v2_extra_preset_switch"><span>额外请求套用酒馆预设（v2）</span>
+                                <div class="menu_button menu_button_icon" id="table_v2_extra_preset_import" title="选一个酒馆「对话补全预设」的 JSON 文件"><i class="fa-solid fa-file-import"></i><a>导入预设</a></div>
+                                <div class="menu_button menu_button_icon" id="table_v2_extra_preset_clear"><i class="fa-solid fa-trash"></i><a>清除</a></div>
+                                <small class="toggle-description justifyLeft" id="table_v2_extra_preset_info">(还没导入预设)</small>
+                            </div>
                             <div class="checkbox_label range-block justifyLeft">
                                 <input type="checkbox" id="table_v2_request_panel_switch"><span>额外请求时在底部显示输出面板（v2）</span>
                             </div>
