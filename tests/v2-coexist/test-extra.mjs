@@ -67,7 +67,7 @@ await assert.rejects(ER.askExtra('s', 'u', '自定义'), /地址或模型没填|
 console.log('✓ 额外请求选主 API / 自定义 API');
 
 // 套用酒馆预设
-const { parsePreset, buildExtraMessages, normalizePreset, SLOT_ID } = await import(REPO + '/core/extraPreset.js');
+const { parsePreset, buildExtraMessages, normalizePreset, SLOT_ID, TASK_REMINDER } = await import(REPO + '/core/extraPreset.js');
 const stPreset = {
   squash_system_messages: false,
   prompts: [
@@ -99,18 +99,18 @@ USER.tableBaseSetting.v2_extra_preset = parsed;
 USER.tableBaseSetting.v2_extra_preset_enabled = false;
 assert.equal(buildExtraMessages('S', 'U').length, 2, '没开预设只有两条');
 USER.tableBaseSetting.v2_extra_preset_enabled = true;
-assert.deepEqual(buildExtraMessages('S', 'U').map(m => `${m.role}:${m.content}`), ['system:破限说明 {{user}}', 'system:S', 'system:深度1', 'user:U', 'user:深度0', 'system:后置指令', 'assistant:好的，'], '深度条目插进 v2 内容里');
+assert.deepEqual(buildExtraMessages('S', 'U').map(m => `${m.role}:${m.content}`), ['system:破限说明 {{user}}', 'system:S', 'system:深度1', 'user:U', 'user:深度0', 'system:后置指令', `user:${TASK_REMINDER}\n\nS\n\n严格按上面要求的输出格式回答，只输出要求的内容。`, 'assistant:好的，'], '深度条目插进 v2 内容里；任务提醒放在后置指令之后、预填充之前');
 // 调顺序、关条目后照新顺序发
 const edited = normalizePreset(parsed);
 edited.entries.reverse();
 edited.entries.find(e => e.id === 'jailbreak').enabled = false;
 USER.tableBaseSetting.v2_extra_preset = edited;
-assert.deepEqual(buildExtraMessages('S', 'U').map(m => m.content), ['好的，', 'S', '深度1', 'U', '深度0', '破限说明 {{user}}']);
+assert.deepEqual(buildExtraMessages('S', 'U').map(m => m.content), ['好的，', 'S', '深度1', 'U', '深度0', '破限说明 {{user}}', `${TASK_REMINDER}\n\nS\n\n严格按上面要求的输出格式回答，只输出要求的内容。`], '末尾不是预填充时提醒放最后');
 USER.tableBaseSetting.v2_extra_preset = parsed;
 USER.tableBaseSetting.v2_extra_api = 'main';
 let sent = null;
 APP.generateRaw = async (opts) => { sent = opts; return '预设回复'; };
 assert.equal(await ER.askExtra('S', 'U', '预设'), '预设回复');
-assert.equal(Array.isArray(sent.prompt) && sent.prompt.length, 7, '主 API 整组消息发出去');
+assert.equal(Array.isArray(sent.prompt) && sent.prompt.length, 8, '主 API 整组消息发出去');
 USER.tableBaseSetting.v2_extra_preset_enabled = false;
 console.log('✓ 额外请求套用酒馆预设：顺序、开关、深度、调顺序');

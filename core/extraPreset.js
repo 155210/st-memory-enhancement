@@ -196,5 +196,18 @@ export function buildExtraMessages(system, user) {
     const core = [{ role: 'system', content: system }, { role: 'user', content: user }];
     if (!presetActive()) return core;
     const preset = currentPreset();
-    return assembleMessages(preset.entries, core, substitute, preset.squash);
+    return withTaskReminder(assembleMessages(preset.entries, core, substitute, preset.squash), system);
 }
+
+/**
+ * 写故事的预设在 v2 内容后面往往还有「继续写剧情」之类的后置指令，模型会照着续写剧情。
+ * 所以在最后（末尾的 AI 预填充之前）再放一条用户消息，把这次的任务重说一遍。
+ */
+export function withTaskReminder(messages, system) {
+    let at = messages.length;
+    while (at > 0 && messages[at - 1].role === 'assistant') at--;
+    const reminder = { role: 'user', content: `${TASK_REMINDER}\n\n${system}\n\n严格按上面要求的输出格式回答，只输出要求的内容。` };
+    return [...messages.slice(0, at), reminder, ...messages.slice(at)];
+}
+
+export const TASK_REMINDER = '【这次的任务】上面的预设是写故事用的。这次不是写故事：不要续写剧情，不要扮演角色，不要输出正文。只按下面的要求完成任务：';
