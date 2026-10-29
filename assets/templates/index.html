@@ -209,6 +209,8 @@
                                 </label>
                                 <label>状态标签名 <input type="text" id="table_v2_card_tag" class="text_pole" placeholder="Calculated_data" style="width: 100%"></label>
                                 <small class="toggle-description justifyLeft">(AI 每楼输出的状态块所在的标签，不带尖括号，例如 Calculated_data)</small>
+                                <label>判断在场时跳过的标签 <input type="text" id="table_v2_card_ignore_tags" class="text_pole" placeholder="例如 status, 人物列表" style="width: 100%"></label>
+                                <small class="toggle-description justifyLeft">(资料卡只看最新一楼：状态标签里有谁、时空表此地角色、正文里提到谁。正文里这些标签中间的内容不看；上面「找人名时跳过的标签」也会一起跳过)</small>
                                 <label>字段对照（每行「标签里的字段=卡片字段」）
                                     <textarea id="table_v2_card_field_map" class="wide100p" rows="3" placeholder="对{{user}}好感=好感&#10;-臣服值=臣服值"></textarea>
                                 </label>

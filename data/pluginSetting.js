@@ -173,8 +173,9 @@ export const defaultSettings = await switchLanguage('__defaultSettings__', {
     v2_request_panel: true,
     // v2：角色资料卡（聊天里的角色卡片，只看不发，不进提示词）
     v2_card_enabled: true,
-    v2_card_position: 'last_message',
+    v2_card_position: 'chat_bottom',
     v2_card_tag: 'Calculated_data',
+    v2_card_ignore_tags: '',
     v2_card_field_map: '',
     v2_card_short_limit: 20,
     v2_card_font_size: 14,

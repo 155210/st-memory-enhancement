@@ -1,5 +1,6 @@
 import { APP, BASE, EDITOR, USER } from '../../core/manager.js';
-import { collectNames } from '../../core/summaryManager.js';
+import { collectNames, findRolesInText } from '../../core/summaryManager.js';
+import { cleanChatText, ignoredTags } from '../../core/chatText.js';
 import { computeTiers, isPairSheet } from '../../core/sendTiers.js';
 import { presentNames } from '../../core/worldMap.js';
 import { findRowByName, isNameKeyedSheet, writeRowValues } from '../../core/rowIdentity.js';
@@ -70,11 +71,34 @@ function buildModel() {
         list.push({ primary: name, aliases: [], sections: [], tokens: 0, empty: [], text: '', numbers: {}, fieldLabels: new Set(), tagOnly: true });
         index.set(name, name);
     }
-    const present = new Set();
-    safe(() => computeTiers(sheets)?.present?.forEach(n => index.has(n) && present.add(index.get(n))));
-    safe(() => presentNames(sheets).forEach(n => index.has(n) && present.add(index.get(n))));
     const names = safe(() => collectNames(sheets), new Map());
+    const present = cardPresent(sheets, index, names);
     return { sheets, list, index, orphans: built.orphans || [], byPrimary: new Map(list.map(p => [p.primary, p])), present, names };
+}
+
+/** 资料卡自己的「跳过的标签」：设置里两处都算 */
+function cardIgnoredTags() {
+    const own = String(setting().v2_card_ignore_tags || '').split(/[,，、\s]+/).map(t => t.replace(/^<\/?|>$/g, '').trim()).filter(Boolean);
+    return [...safe(() => ignoredTags(), []), ...own];
+}
+
+/**
+ * 在场：只看最新一条 AI 回复
+ * - 状态标签里列出的人
+ * - 时空表「此地角色」
+ * - 正文里提到的名字（去掉状态标签本身和跳过的标签）
+ */
+function cardPresent(sheets, index, names) {
+    const present = new Set();
+    const add = (n) => { const key = clean(n); if (index.has(key)) present.add(index.get(key)); else if (names.has(key)) present.add(names.get(key)); };
+    const chat = USER.getContext()?.chat || [];
+    let last = null;
+    for (let i = chat.length - 1; i >= 0; i--) if (chat[i] && !chat[i].is_user && !chat[i].is_system) { last = chat[i]; break; }
+    const mes = String(last?.mes ?? '');
+    safe(() => CS.parseStatusBlocks(mes).forEach(b => add(b.name)));
+    safe(() => presentNames(sheets).forEach(add));
+    safe(() => findRolesInText(cleanChatText(mes, [...cardIgnoredTags(), CS.statusConfig().tag]), names, 100).forEach(add));
+    return present;
 }
 
 const resolveName = (name) => {
@@ -297,7 +321,10 @@ function statusHtml(p, st, changed) {
         if (/当前阶段/.test(label) && !cycle) { const c = cycleHtml(value); if (c) { cycle = c; continue; } }
         const pv = safe(() => CS.parseValue(value), {}) || {};
         const item = { key: `st:${label}`, label, value, pv };
-        const hasNum = Number.isFinite(pv.num) || Number.isFinite(pv.ml);
+        // 只有真正的数值才按数字显示：带「/上限」「(差值)」或整格就是数字；外貌这类长文本开头碰巧是数字的不算
+        const numeric = Number.isFinite(pv.ml) || (Number.isFinite(pv.num) && (Number.isFinite(pv.max) || Number.isFinite(pv.delta) || /^\s*-?\d+(\.\d+)?\s*$/.test(value)));
+        const hasNum = numeric && !LONG_STATUS.test(label);
+        if (!hasNum) { delete item.pv.num; delete item.pv.ml; }
         if (!hasNum && NUMERIC_EXPECT.test(label) && !/服装|状态$/.test(label) && /^\D*$/.test(value) && value !== '无') item.missing = true;
         if (hasNum || item.missing || (!LONG_STATUS.test(label) && value.length <= shortLimit && !value.includes('\n'))) grid.push(item);
         else longs.push(item);
@@ -332,7 +359,10 @@ function curveHtml(p) {
     if (ui.privacy) return '';
     const hist = CS.cardState().history?.[p.primary] || {};
     const fields = CURVE_FIELDS.filter(f => (hist[f] || []).length >= 2);
-    if (!fields.length) return '';
+    if (!fields.length) {
+        const one = CURVE_FIELDS.filter(f => (hist[f] || []).length === 1);
+        return `<div class="v2cc-block v2cc-curve"><div class="v2cc-blockhead"><b>变化曲线</b></div><div class="v2cc-empty">${one.length ? `${esc(one.join('、'))} 才记了 1 个点，下一楼开始画线` : '还没有数值记录，等她出场输出状态标签后开始记'}</div></div>`;
+    }
     if (!fields.includes(ui.curve)) { ui.curve = fields[0]; ui.curvePt = -1; }
     const points = hist[ui.curve];
     const i = ui.curvePt >= 0 && ui.curvePt < points.length ? ui.curvePt : points.length - 1;
