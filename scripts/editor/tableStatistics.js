@@ -1,6 +1,7 @@
 import {BASE, DERIVED, EDITOR, SYSTEM, USER} from '../../core/manager.js';
 import { Cell } from '../../core/table/cell.js';
 import {estimateTokenCount} from "../settings/standaloneAPI.js";
+import { V2, ORIGINAL } from '../../core/v2keys.js';
 
 const statistics = `
 <style>
@@ -53,7 +54,8 @@ async function updataTableStatisticsData(container) {
         { label: '历史总单元格数量', value: cellHistories.reduce((acc, cellHistory) => acc + cellHistory.length, 0) },
         { label: '历史数据总大小', value: `${(JSON.stringify(sheetsData).length / 1024).toFixed(2)} KB` },
         { label: '当前表格模糊计算的Token数', value: Math.round(sheetsValueCount * 0.6) },
-        { label: '当前表格最后一次修改位置', value: lastChangeFloor }
+        { label: '当前表格最后一次修改位置', value: lastChangeFloor },
+        ...storageSizeStats(sheets),
     ];
 
     // 获取内容容器
@@ -132,4 +134,42 @@ export async function openTableStatisticsPopup(){
     updataTableStatisticsData(statisticsContainer);
 
     await tableStatisticsPopup.show();
+}
+
+/** 把字符数换算成好读的大小（按 UTF-8 粗算：中文约 3 字节） */
+function formatSize(text) {
+    const bytes = new Blob([text]).size;
+    if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+    return `${(bytes / 1024).toFixed(1)} KB`;
+}
+
+/** 占用大小：整个聊天文件、v2 和原版各自的每层快照、各表的行数和字数 */
+function storageSizeStats(sheets) {
+    const context = USER.getContext();
+    const chat = context.chat || [];
+    const sizeOfKey = (key) => {
+        let floors = 0;
+        const text = chat.map(piece => {
+            if (!piece?.[key]) return '';
+            floors++;
+            return JSON.stringify(piece[key]);
+        }).join('');
+        return { floors, text };
+    };
+    const v2Snap = sizeOfKey(V2.pieceHash);
+    const originalSnap = sizeOfKey(ORIGINAL.pieceHash);
+    const stats = [
+        { label: '聊天文件总大小（约）', value: formatSize(JSON.stringify(chat) + JSON.stringify(context.chatMetadata || {})) },
+        { label: '其中 v2 每层快照', value: `${formatSize(v2Snap.text)}（${v2Snap.floors} 层）` },
+        { label: '其中原版每层快照', value: `${formatSize(originalSnap.text)}（${originalSnap.floors} 层）` },
+        { label: '其中 v2 表格历史数据', value: formatSize(JSON.stringify(context.chatMetadata?.[V2.chatSheets] || [])) },
+        { label: '其中原版表格历史数据', value: formatSize(JSON.stringify(context.chatMetadata?.[ORIGINAL.chatSheets] || [])) },
+    ];
+    for (const sheet of sheets) {
+        const rows = sheet.getRowCount() - 1;
+        let chars = 0;
+        for (let r = 1; r <= rows; r++) sheet.getCellsByRowIndex(r).slice(1).forEach(cell => { chars += String(cell?.data?.value ?? '').length; });
+        stats.push({ label: `「${sheet.name}」`, value: `${rows} 行，${chars} 字` });
+    }
+    return stats;
 }
