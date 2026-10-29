@@ -150,9 +150,9 @@ export function attachMapZoom(svg) {
 
 /** 只留安全的 SVG：去掉脚本、事件属性、外链 */
 export function sanitizeSvg(raw) {
-    const match = String(raw || '').match(/<svg[\s\S]*<\/svg>/i);
-    if (!match) return '';
-    let svg = match[0]
+    let svg = completeSvg(raw);
+    if (!svg) return '';
+    svg = svg
         .replace(/<script[\s\S]*?<\/script>/gi, '')
         .replace(/<foreignObject[\s\S]*?<\/foreignObject>/gi, '')
         .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
@@ -161,12 +161,33 @@ export function sanitizeSvg(raw) {
     return svg;
 }
 
+/** 回复是不是写到一半被截断了（有 <svg 没有 </svg>） */
+export function svgTruncated(raw) {
+    const text = String(raw || '');
+    return /<svg\b/i.test(text) && !/<\/svg>/i.test(text);
+}
+
+/** 取出 SVG；被截断时丢掉最后半个标签，补上 </svg>，能画多少画多少 */
+function completeSvg(raw) {
+    const text = String(raw || '');
+    const full = text.match(/<svg[\s\S]*<\/svg>/i);
+    if (full) return full[0];
+    const start = text.search(/<svg\b/i);
+    if (start === -1) return '';
+    const cut = text.slice(start, text.lastIndexOf('>') + 1);
+    if (!/^<svg\b[^>]*>/i.test(cut)) return '';
+    // 没闭合的 <text>/<g> 补上，免得后面的 </svg> 被吞
+    const open = (tag) => (cut.match(new RegExp(`<${tag}\\b(?:[^>]*[^/>])?>`, 'gi')) || []).length - (cut.match(new RegExp(`</${tag}>`, 'gi')) || []).length;
+    return cut + '</text>'.repeat(Math.max(0, open('text'))) + '</g>'.repeat(Math.max(0, open('g'))) + '</svg>';
+}
+
 const AI_MAP_SYSTEM = `你是地图绘制员。根据用户给的地点和最近剧情，画当前地点的平面示意图。
 要求：
 1. 只输出一段 SVG 代码：<svg viewBox="0 0 {W} {H}" xmlns="http://www.w3.org/2000/svg">……</svg>，不要解释。
 2. 用方框代表房间、建筑或区域，用线或箭头表示通道和出入口，中文标注名字（font-size 12 到 16）。
 3. 用小圆点加名字标出在场人物的位置，<user> 用不同颜色。
-4. 只画剧情里出现过或合理推断的结构，不要写实细节，不要图片、脚本和外链。`;
+4. 只画剧情里出现过或合理推断的结构，不要写实细节，不要图片、脚本和外链。
+5. 代码要短：不写注释，不写多余属性，元素总数控制在 80 个以内，免得超出回复长度被截断。`;
 
 /** 画布大小跟屏幕走：手机竖屏就画成竖的，1 个单位约等于 1 像素，字不会被缩得太小 */
 export function mapSize() {
@@ -208,9 +229,11 @@ export async function drawAiMap(force = false, size = mapSize()) {
             `最近剧情：\n${recentText(2).replace(/<tableEdit>[\s\S]*?<\/tableEdit>/g, '').slice(-3000)}`,
         ].filter(Boolean).join('\n');
         const system = AI_MAP_SYSTEM.replace('{W}', size.width).replace('{H}', size.height)
-            + (size.height > size.width ? '\n5. 画布是竖的（给手机看），房间从上往下排，字不要小于 14。' : '');
-        const svg = sanitizeSvg(await summaryHooks.ask(system, prompt, `画地图：${path}`));
+            + (size.height > size.width ? '\n6. 画布是竖的（给手机看），房间从上往下排，字不要小于 14。' : '');
+        const raw = await summaryHooks.ask(system, prompt, `画地图：${path}`);
+        const svg = sanitizeSvg(raw);
         if (!svg) throw new Error('AI 没有返回 SVG');
+        const truncated = svgTruncated(raw);
         const meta = USER.getContext().chatMetadata;
         meta[V2.mapCache] ||= {};
         meta[V2.mapCache][path] = { svg, at: new Date().toISOString() };
@@ -218,7 +241,7 @@ export async function drawAiMap(force = false, size = mapSize()) {
         const keys = Object.keys(meta[V2.mapCache]);
         keys.slice(0, Math.max(0, keys.length - 30)).forEach(k => delete meta[V2.mapCache][k]);
         await USER.saveChat();
-        return { path, svg, cached: false };
+        return { path, svg, cached: false, truncated };
     } finally {
         drawing = false;
     }

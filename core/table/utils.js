@@ -5,6 +5,7 @@ export const cellStyle = `
     .sheet-header-cell-top { font-weight: bold }
     .sheet-header-cell-left { font-weight: bold }
     .sheet-cell-other { min-width: 50px; border: 1px dashed var(--SmartThemeEmColor); }
+    .sheet-cell-long { min-width: min(16em, 65vw); text-align: left; }
 `
 
 // Helper function to convert column index to letter (A, B, C...)

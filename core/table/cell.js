@@ -146,6 +146,8 @@ export class Cell {
                 this.element.textContent = this.data.value || '';
                 this.element.classList.add('sheet-cell-other');
                 this.element.style.color = 'var(--SmartThemeEmColor)';
+                // 长文字（大总结、归档）给够宽度，不然手机上被挤成一竖条
+                if (String(this.data.value || '').length > 30) this.element.classList.add('sheet-cell-long');
             }
         }
     }
