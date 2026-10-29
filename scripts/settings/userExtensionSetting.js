@@ -31,6 +31,126 @@ function updateSwitch(selector, switchValue) {
     }
 }
 
+/** 角色资料卡改了设置后重画（动态引入，避免循环引用；资料卡模块不在时不报错） */
+function refreshCharacterCardSoon() {
+    import('../renderer/characterCardView.js').then(m => m.refreshCharacterCard?.()).catch(() => {});
+}
+
+/** 角色资料卡：数字设置的取值范围 */
+const CARD_NUMBER_SETTINGS = {
+    short_limit: { min: 1, max: 500, fallback: 20 },
+    font_size: { min: 10, max: 24, fallback: 14 },
+    history_points: { min: 2, max: 1000, fallback: 50 },
+    jump_threshold: { min: 1, max: 100, fallback: 20 },
+};
+
+/**
+ * 角色资料卡设置：绑定事件
+ */
+function initCharacterCardSettings() {
+    const setting = USER.tableBaseSetting;
+    $('#table_v2_card_switch').change(function () {
+        setting.v2_card_enabled = this.checked;
+        $('#table_v2_card_options').toggle(this.checked);
+        refreshCharacterCardSoon();
+    });
+    $('#table_v2_card_position').on('change', function () {
+        setting.v2_card_position = this.value === 'chat_bottom' ? 'chat_bottom' : 'last_message';
+        refreshCharacterCardSoon();
+    });
+    $('#table_v2_card_tag').on('change', function () {
+        const value = String($(this).val() || '').trim().replace(/^<\/?|>$/g, '');
+        setting.v2_card_tag = value || 'Calculated_data';
+        $(this).val(setting.v2_card_tag);
+        refreshCharacterCardSoon();
+    });
+    $('#table_v2_card_field_map').on('change', function () {
+        setting.v2_card_field_map = String(this.value || '');
+        refreshCharacterCardSoon();
+    });
+    Object.entries(CARD_NUMBER_SETTINGS).forEach(([key, { min, max }]) => {
+        $(`#table_v2_card_${key}`).on('change', function () {
+            const value = parseInt(this.value);
+            if (Number.isInteger(value) && value >= min && value <= max) {
+                setting[`v2_card_${key}`] = value;
+                refreshCharacterCardSoon();
+            } else {
+                $(this).val(setting[`v2_card_${key}`]);
+                EDITOR.warning(`请填 ${min} 到 ${max} 之间的整数`);
+            }
+        });
+    });
+    $('#table_v2_card_private_tables').on('change', function () {
+        setting.v2_card_private_tables = String($(this).val() || '').split(/[,，]/).map(x => x.trim()).filter(Boolean).join(',');
+        refreshCharacterCardSoon();
+    });
+    $('#table_v2_card_rule_check_switch').change(function () {
+        setting.v2_card_rule_check = this.checked;
+        refreshCharacterCardSoon();
+    });
+    $('#table_v2_card_layout').on('change', function () {
+        const text = String(this.value || '').trim();
+        if (text) {
+            try {
+                const parsed = JSON.parse(text);
+                if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('要写成 { ... } 的对象');
+            } catch (error) {
+                EDITOR.warning('卡片布局不是有效的 JSON，先按默认布局显示', error.message);
+            }
+        }
+        setting.v2_card_layout = text;
+        refreshCharacterCardSoon();
+    });
+    $('#table_v2_card_export_button').on('click', async function () {
+        try {
+            const [{ exportBackup }, { downloadJson }] = await Promise.all([
+                import('../../core/characterStatus.js'),
+                import('../renderer/characterCardActions.js'),
+            ]);
+            const backup = exportBackup();
+            const chatId = String(backup?.chat || USER.getContext()?.chatId || 'chat').replace(/[\\/:*?"<>|]/g, '_');
+            downloadJson(backup, `角色资料卡备份_${chatId}.json`);
+        } catch (error) {
+            EDITOR.error('导出资料卡备份失败', error.message, error);
+        }
+    });
+    $('#table_v2_card_import_button').on('click', async function () {
+        try {
+            const [{ importBackup }, { pickJsonFile }] = await Promise.all([
+                import('../../core/characterStatus.js'),
+                import('../renderer/characterCardActions.js'),
+            ]);
+            const obj = await pickJsonFile();
+            if (!obj) return;
+            const ok = await EDITOR.callGenericPopup('把备份里的资料卡数据合并进这个聊天？<br><br>只合并资料卡自己的记录（状态、曲线、书签、备注、头像、分组），不动表格。', EDITOR.POPUP_TYPE.CONFIRM, '导入资料卡备份', { okButton: '导入', cancelButton: '取消' });
+            if (!ok) return;
+            const result = await importBackup(obj);
+            if (result === false || result?.ok === false) return EDITOR.error('导入失败', result?.error || '这个文件不是资料卡备份');
+            refreshCharacterCardSoon();
+            EDITOR.success(Number.isFinite(result?.characters) ? `资料卡备份已导入（${result.characters} 个角色）` : '资料卡备份已导入');
+        } catch (error) {
+            EDITOR.error('导入资料卡备份失败', error.message, error);
+        }
+    });
+}
+
+/**
+ * 角色资料卡设置：把当前值填进控件
+ */
+function loadCharacterCardSettings() {
+    const setting = USER.tableBaseSetting;
+    const enabled = setting.v2_card_enabled !== false;
+    updateSwitch('#table_v2_card_switch', enabled);
+    $('#table_v2_card_options').toggle(enabled);
+    $('#table_v2_card_position').val(setting.v2_card_position === 'chat_bottom' ? 'chat_bottom' : 'last_message');
+    $('#table_v2_card_tag').val(setting.v2_card_tag || 'Calculated_data');
+    $('#table_v2_card_field_map').val(setting.v2_card_field_map || '');
+    Object.entries(CARD_NUMBER_SETTINGS).forEach(([key, { fallback }]) => $(`#table_v2_card_${key}`).val(setting[`v2_card_${key}`] ?? fallback));
+    $('#table_v2_card_private_tables').val(setting.v2_card_private_tables ?? '角色信息表格');
+    updateSwitch('#table_v2_card_rule_check_switch', setting.v2_card_rule_check !== false);
+    $('#table_v2_card_layout').val(setting.v2_card_layout || '');
+}
+
 /**
  * 更新设置中的表格结构DOM
  */
@@ -376,6 +496,8 @@ function InitBinging() {
     $('#table_v2_reminders').on('input', function () {
         USER.tableBaseSetting.v2_reminders = this.value;
     });
+    // v2：角色资料卡
+    initCharacterCardSettings();
     // 插件读表开关
     $('#table_read_switch').change(function () {
         USER.tableBaseSetting.isAiReadTable = this.checked;
@@ -672,6 +794,7 @@ export function renderSetting() {
     $('#table_v2_ignore_tags').val(USER.tableBaseSetting.v2_ignore_tags || '');
     updateSwitch('#table_v2_reminders_switch', USER.tableBaseSetting.v2_reminders_enabled !== false);
     $('#table_v2_reminders').val(USER.tableBaseSetting.v2_reminders || '');
+    loadCharacterCardSettings();
     updateSwitch('#table_v2_summary_switch', USER.tableBaseSetting.v2_summary_enabled !== false);
     $('#table_v2_summary_options').toggle(USER.tableBaseSetting.v2_summary_enabled !== false);
     ['event_threshold', 'batch', 'keep', 'recall_count'].forEach(key => $(`#table_v2_summary_${key}`).val(USER.tableBaseSetting[`v2_summary_${key}`]));

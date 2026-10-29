@@ -194,6 +194,50 @@
                             <div style="padding-left: 5px;">
                                 <textarea id="table_v2_reminders" class="wide100p" rows="3" placeholder="10|检查悬念簿里有没有该收的伏笔&#10;30|推进主线"></textarea>
                             </div>
+                            <!-- v2：角色资料卡 -->
+                            <h4>角色资料卡（v2）</h4>
+                            <div class="checkbox_label range-block justifyLeft">
+                                <input type="checkbox" id="table_v2_card_switch"><span>在聊天里显示角色资料卡</span>
+                                <small class="toggle-description justifyLeft">(把每个人在各张表里的内容、正文状态标签里的最新数值汇成一张卡片，只给你看，不发给 AI、不进提示词)</small>
+                            </div>
+                            <div id="table_v2_card_options" style="display: flex; flex-direction: column; gap: 6px; padding-left: 5px;">
+                                <label>卡片放在
+                                    <select id="table_v2_card_position" class="text_pole">
+                                        <option value="last_message">最新一条消息底部</option>
+                                        <option value="chat_bottom">聊天记录最下面</option>
+                                    </select>
+                                </label>
+                                <label>状态标签名 <input type="text" id="table_v2_card_tag" class="text_pole" placeholder="Calculated_data" style="width: 100%"></label>
+                                <small class="toggle-description justifyLeft">(AI 每楼输出的状态块所在的标签，不带尖括号，例如 Calculated_data)</small>
+                                <label>字段对照（每行「标签里的字段=卡片字段」）
+                                    <textarea id="table_v2_card_field_map" class="wide100p" rows="3" placeholder="对{{user}}好感=好感&#10;-臣服值=臣服值"></textarea>
+                                </label>
+                                <div style="display: flex; flex-wrap: wrap; gap: 6px 12px;">
+                                    <label>短内容最多几个字 <input type="number" id="table_v2_card_short_limit" class="text_pole" min="1" style="width: 60px"></label>
+                                    <label>字号 px <input type="number" id="table_v2_card_font_size" class="text_pole" min="10" max="24" style="width: 60px"></label>
+                                    <label>每项曲线保留几个点 <input type="number" id="table_v2_card_history_points" class="text_pole" min="2" style="width: 60px"></label>
+                                    <label>突变提醒阈值 <input type="number" id="table_v2_card_jump_threshold" class="text_pole" min="1" style="width: 60px"></label>
+                                </div>
+                                <small class="toggle-description justifyLeft">(不超过这个字数的值排成两列小格，更长的和 # 列折叠显示；突变阈值指满分 100 的数值一楼之内变化超过多少就提醒)</small>
+                                <label>私密表（逗号分隔） <input type="text" id="table_v2_card_private_tables" class="text_pole" placeholder="角色信息表格" style="width: 100%"></label>
+                                <small class="toggle-description justifyLeft">(这些表在卡片里默认折叠，点「遮挡」时和状态块一起换成「已遮挡」)</small>
+                                <div class="checkbox_label range-block justifyLeft">
+                                    <input type="checkbox" id="table_v2_card_rule_check_switch"><span>规则自检提醒</span>
+                                    <small class="toggle-description justifyLeft">(液体量无故减少、胃 / 膀胱超量没写后果、高潮次数变少、数值里写「多次」「不详」等，在卡片上标黄提醒；只提醒，不改数据)</small>
+                                </div>
+                                <label>卡片布局（JSON，可留空）
+                                    <textarea id="table_v2_card_layout" class="wide100p" rows="3" placeholder='{ "order": ["角色特征表格", "角色关系表"], "hidden": { "角色特征表格": ["备注"] }, "forceLong": ["经历"], "forceShort": [] }'></textarea>
+                                </label>
+                                <small class="toggle-description justifyLeft">(order 表的先后，hidden 每张表要隐藏的列，forceLong / forceShort 强制折叠或排成小格的列名；格式不对时按默认布局)</small>
+                                <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                                    <div class="menu_button_icon menu_button interactable" id="table_v2_card_export_button" title="把这个聊天的资料卡数据（状态记录、曲线、书签、备注、头像、分组）存成 JSON 文件">
+                                        <i class="fa-solid fa-file-export"></i><span>导出资料卡备份</span>
+                                    </div>
+                                    <div class="menu_button_icon menu_button interactable" id="table_v2_card_import_button" title="从 JSON 文件把资料卡数据合并回这个聊天">
+                                        <i class="fa-solid fa-file-import"></i><span>导入资料卡备份</span>
+                                    </div>
+                                </div>
+                            </div>
 
                             <h4 data-i18n="Message template">消息模板</h4>
                             <div style="padding-left: 5px;">

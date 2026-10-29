@@ -18,6 +18,7 @@ export const V2 = {
     summaryState: 'memory_enhancement_v2_summary',
     summaryUndo: 'memory_enhancement_v2_summary_undo',
     mapCache: 'memory_enhancement_v2_maps',
+    characterCard: 'memory_enhancement_v2_character_card',
     // 每条消息上的数据
     pieceHash: 'hash_sheets_v2',
     twoStepLinks: 'two_step_links_v2',
