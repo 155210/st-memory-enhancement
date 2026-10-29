@@ -1,4 +1,5 @@
 import { V2 } from '../v2keys.js';
+import { cleanChatText } from '../chatText.js';
 import { BASE, DERIVED, EDITOR, SYSTEM, USER } from '../manager.js';
 import { SheetBase } from "./base.js";
 import { cellStyle, filterSavingData } from "./utils.js";
@@ -431,8 +432,7 @@ function getLatestChatHistory(chat, deep) {
     // 从最新记录开始逆序遍历，最大不超过聊天记录最大楼层
     for (let i = 0; i < Math.min(deep, floors); i++) {
         // 格式化消息并清理标签
-        const currentStr = `${filteredChat[floors - i - 1].mes}`
-            .replace(/<tableEdit>[\s\S]*?<\/tableEdit>/g, '');
+        const currentStr = cleanChatText(filteredChat[floors - i - 1].mes);
         collected += currentStr;
     }
     return collected;

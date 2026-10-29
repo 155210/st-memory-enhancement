@@ -125,3 +125,12 @@ const recent = SM.recentText(1);
 assert.match(recent, /林悠悠在门口/);
 assert.doesNotMatch(recent, /陈默|苏晴|updateRow/);
 console.log('✓ 在场判断不算填表指令和思考里的人');
+// 设置里填的标签也跳过（状态栏里列了一堆人）
+chat.push({ is_user: false, mes: '苏晴走了进来。<status class="x">陈默：好感 50\n林悠悠：好感 60</status>' });
+USER.tableBaseSetting.v2_ignore_tags = '';
+assert.match(SM.recentText(1), /陈默/);
+USER.tableBaseSetting.v2_ignore_tags = '<status>， 人物列表';
+assert.doesNotMatch(SM.recentText(1), /陈默/);
+assert.match(SM.recentText(1), /苏晴走了进来/);
+USER.tableBaseSetting.v2_ignore_tags = '';
+console.log('✓ 找人名时跳过设置里的标签');

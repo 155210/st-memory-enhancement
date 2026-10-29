@@ -363,6 +363,9 @@ function InitBinging() {
     $('#table_v2_tier_switch').change(function () {
         USER.tableBaseSetting.v2_tier_enabled = this.checked;
     });
+    $('#table_v2_ignore_tags').on('change', function () {
+        USER.tableBaseSetting.v2_ignore_tags = String($(this).val() || '').trim();
+    });
     $('#table_v2_tier_main_count').on('change', function () {
         const value = parseInt(this.value);
         if (Number.isInteger(value) && value >= 0) USER.tableBaseSetting.v2_tier_main_count = value;
@@ -666,6 +669,7 @@ export function renderSetting() {
     renderPresetPanel();
     updateSwitch('#table_v2_tier_switch', USER.tableBaseSetting.v2_tier_enabled !== false);
     $('#table_v2_tier_main_count').val(USER.tableBaseSetting.v2_tier_main_count ?? 10);
+    $('#table_v2_ignore_tags').val(USER.tableBaseSetting.v2_ignore_tags || '');
     updateSwitch('#table_v2_reminders_switch', USER.tableBaseSetting.v2_reminders_enabled !== false);
     $('#table_v2_reminders').val(USER.tableBaseSetting.v2_reminders || '');
     updateSwitch('#table_v2_summary_switch', USER.tableBaseSetting.v2_summary_enabled !== false);
