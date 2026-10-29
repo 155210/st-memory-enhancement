@@ -116,3 +116,12 @@ assert.equal(resolveCellWrite('身体特征', long, '很长的描写很长的描
 assert.equal(resolveCellWrite('#往事', '早；最近的事', '…最近的事'), undefined);
 assert.equal(resolveCellWrite('身体特征', '旧', '新的…描写'), '新的…描写', '真的新内容照写');
 console.log('✓ 截短的格子抄回来不覆盖原文');
+
+// 判断在场时不看填表指令和思考
+chat.length = 0;
+chat.push({ is_user: true, mes: '去找林悠悠' });
+chat.push({ is_user: false, mes: '<think>陈默在哪</think>林悠悠在门口。<tableEdit>\n<!--\nupdateRow(1, 2, {"1":"苏晴 冷淡"})\n-->\n</tableEdit>' });
+const recent = SM.recentText(1);
+assert.match(recent, /林悠悠在门口/);
+assert.doesNotMatch(recent, /陈默|苏晴|updateRow/);
+console.log('✓ 在场判断不算填表指令和思考里的人');
