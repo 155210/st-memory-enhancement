@@ -1,11 +1,12 @@
 import { USER } from './manager.js';
 import { getHeaders, isNameKeyedSheet, parseNameCell, stripColumnMark } from './rowIdentity.js';
 import { collectNames, findRolesInText, readRows, recentText } from './summaryManager.js';
+import { placesInMessage, splitPlace } from './locationTree.js';
 
 /**
  * @description I1 角色四档发送：角色类表不再整张发
  * @description - 在场（时空表的此地角色、最近几层正文里出现的人）：发完整一行
- * @description - 主要角色（最近几十层出场最多的几个，自动选）：发简要一行，长格子截短
+ * @description - 主要角色（最近几十层出场最多的几个，自动选）、住所和你在同一片区域的人：发简要一行，长格子截短
  * @description - 其余：只进名册，一个名字占几个字
  * @description - <user> 永远发完整
  * @description 三张角色表用同一份名单，行号保持原样，AI 照样能按行号或名字更新
@@ -46,7 +47,35 @@ export function computeTiers(sheets) {
         findRolesInText(String(last.values[col] || ''), names, 100).forEach(n => present.add(n));
     }
     const main = new Set(findRolesInText(recentText(config.mainDepth), names, config.mainCount));
-    return { present, main, names };
+    const region = sameRegionNames(sheets);
+    return { present, main, region, names };
+}
+
+/** 当前地点所在的区域（去掉最里面一层，只取三个字以上的段） */
+function currentRegionSegments() {
+    const chat = USER.getContext().chat || [];
+    for (let i = chat.length - 1; i >= 0 && i >= chat.length - 6; i--) {
+        if (chat[i]?.is_user) continue;
+        const places = placesInMessage(chat[i]?.mes);
+        if (places.length) return splitPlace(places[places.length - 1]).slice(0, -1).filter(seg => seg.length >= 3);
+    }
+    return [];
+}
+
+/** 住所在同一片区域的人（角色表里有「住所」「所在」之类的列时） */
+function sameRegionNames(sheets) {
+    const segments = currentRegionSegments();
+    const result = new Set();
+    if (!segments.length) return result;
+    for (const sheet of sheets) {
+        if (!isNameKeyedSheet(sheet)) continue;
+        const col = getHeaders(sheet).findIndex(h => /住所|住址|所在|居所/.test(stripColumnMark(h)));
+        if (col <= 0) continue;
+        for (const row of readRows(sheet)) {
+            if (segments.some(seg => String(row.values[col] || '').includes(seg))) result.add(parseNameCell(row.values[0]).primary);
+        }
+    }
+    return result;
 }
 
 /** 一行的档位：full / brief / roster */
@@ -55,7 +84,7 @@ export function rowTier(nameCell, tiers) {
     if (!primary || USER_NAMES().has(primary)) return 'full';
     const key = tiers.names.get(primary) || primary;
     if (tiers.present.has(key)) return 'full';
-    if (tiers.main.has(key)) return 'brief';
+    if (tiers.main.has(key) || tiers.region?.has(key)) return 'brief';
     return 'roster';
 }
 

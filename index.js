@@ -7,6 +7,8 @@ import { generateFusion, insertFusion, selectFloors } from './core/fusion.js';
 import { downloadDiagnostics, installErrorCapture } from './core/diagnostics.js';
 import { attachGraphInteraction, buildGraph, layoutGraph, renderGraphSvg } from './core/relationGraph.js';
 import { applyTheme } from './core/themes.js';
+import { buildLocationTree } from './core/locationTree.js';
+import { drawAiMap, mapMode, mapPanelHtml, maybeDrawOnNewPlace, presentNames } from './core/worldMap.js';
 import { applyConditionalBlocks, dueReminderText, lastInjection, recordInjection } from './core/promptExtras.js';
 import { annotateRelativeDates, buildRecallBlock, currentStoryDate, isArchiveSheet, migrateOldSummaries, runSummaryAfterFill, shouldIgnoreAiEdit, summaryConfig } from './core/summaryManager.js';
 import { APP, BASE, DERIVED, EDITOR, SYSTEM, USER } from './core/manager.js';
@@ -31,7 +33,7 @@ import { findActiveOriginal, importOriginalSettingsOnce, offerChatImport, import
 
 console.log("______________________记忆插件：开始加载______________________")
 
-const VERSION = '2.2.19-v2.3'
+const VERSION = '2.2.19-v2.4'
 // v2 的版本检查地址（v2 单独一个仓库，和原版的更新提示互不干扰）
 const V2_MANIFEST_URL = 'https://raw.githubusercontent.com/155210/st-memory-enhancement-v2/refs/heads/master/manifest.json'
 
@@ -886,7 +888,8 @@ async function onMessageReceived(chat_id) {
         try {
             handleEditStrInMessage(chat)
             // 事件满了、大总结多了：另发请求整理，不等它，整理完再刷新
-            runSummaryAfterFill(chat).then(log => { if (log.length) updateSheetsView() })
+            // 之后 AI 地图模式下到了新地点再画一张（排在总结后面，不同时发两个请求）
+            runSummaryAfterFill(chat).then(log => { if (log.length) updateSheetsView() }).then(() => maybeDrawOnNewPlace())
         } catch (error) {
             EDITOR.error("记忆插件：表格自动更改失败\n原因：", error.message, error)
         }
@@ -1382,6 +1385,28 @@ jQuery(async () => {
         const html = `<div id="${id}"><p style="margin:0 0 4px">实线：对你的关系；虚线：在大总结里一起出现过，越深越常一起。拖动圆点调整位置，拖空白处平移，滚轮缩放。</p>${renderGraphSvg(graph, pos)}</div>`
         setTimeout(() => attachGraphInteraction(document.querySelector(`#${id} svg`), graph, pos), 50)
         await EDITOR.callGenericPopup(html, EDITOR.POPUP_TYPE.TEXT, '', { wide: true, large: true })
+    })
+
+    // P3 / P4：地图和地点树
+    $(document).on('click', '#table_v2_map_button', async function () {
+        const mode = mapMode()
+        if (mode === 'off') return EDITOR.error('地图已关闭，在设置的「地图」里选一种画法')
+        const { piece } = BASE.getLastSheetsPiece()
+        const sheets = piece ? BASE.hashSheetsToSheets(BASE.getPieceHash(piece)) : []
+        const tree = buildLocationTree(USER.getContext().chat || [], sheets)
+        const html = `<div style="text-align:left">${mapPanelHtml(tree, presentNames(sheets), mode)}</div>`
+        if (mode !== 'ai') return EDITOR.callGenericPopup(html, EDITOR.POPUP_TYPE.TEXT, '', { wide: true, large: true })
+        const redraw = await EDITOR.callGenericPopup(html, EDITOR.POPUP_TYPE.CONFIRM, '', { wide: true, large: true, okButton: '让 AI 画（重画）', cancelButton: '关闭' })
+        if (!redraw) return
+        try {
+            EDITOR.info('正在让 AI 画当前地点…')
+            const result = await drawAiMap(true)
+            if (!result) return EDITOR.error('认不出当前地点，或者上一张还在画')
+            EDITOR.success(`画好了：${result.path}`)
+            $('#table_v2_map_button').trigger('click')
+        } catch (error) {
+            EDITOR.error('画地图失败', error.message, error)
+        }
     })
 
     // I5：本轮注入预览

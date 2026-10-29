@@ -43,6 +43,10 @@
                             <i class="fa-solid fa-layer-group"></i>
                             <a>整理旧大总结</a>
                         </div>
+                        <div class="menu_button_icon menu_button interactable" id="table_v2_map_button" title="看当前地点的地图和去过的地点树">
+                            <i class="fa-solid fa-map-location-dot"></i>
+                            <a>地图</a>
+                        </div>
                         <div class="menu_button_icon menu_button interactable" id="table_v2_relation_graph_button" title="把角色表、社交表和大总结画成关系网，只给你看">
                             <i class="fa-solid fa-diagram-project"></i>
                             <a>关系图</a>
@@ -130,6 +134,16 @@
                                         <option value="contrast">高对比</option>
                                     </select>
                                 </label>
+                            </div>
+                            <div style="padding-left: 5px;">
+                                <label>地图（v2）
+                                    <select id="table_v2_map_mode" class="text_pole">
+                                        <option value="off">关闭</option>
+                                        <option value="box">程序画框图（不花 token）</option>
+                                        <option value="ai">AI 画示意图（到新地点时画一次）</option>
+                                    </select>
+                                </label>
+                                <small class="toggle-description justifyLeft">(地点从时间标签里拆出来，一轮有多个标签时取最后一个当当前地点)</small>
                             </div>
                             <div class="checkbox_label range-block justifyLeft">
                                 <input type="checkbox" id="table_v2_tier_switch"><span>角色表分档发送（v2）</span>

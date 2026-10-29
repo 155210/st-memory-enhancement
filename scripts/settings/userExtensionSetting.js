@@ -340,6 +340,10 @@ function InitBinging() {
         USER.tableBaseSetting.v2_theme = this.value;
         applyTheme(this.value);
     });
+    // v2：地图画法
+    $('#table_v2_map_mode').on('change', function () {
+        USER.tableBaseSetting.v2_map_mode = this.value;
+    });
     // v2：角色表分档发送、定时提醒
     $('#table_v2_tier_switch').change(function () {
         USER.tableBaseSetting.v2_tier_enabled = this.checked;
@@ -641,6 +645,7 @@ export function renderSetting() {
     updateSwitch('#table_read_switch', USER.tableBaseSetting.isAiReadTable);
     updateSwitch('#table_edit_switch', USER.tableBaseSetting.isAiWriteTable);
     $('#table_v2_theme').val(USER.tableBaseSetting.v2_theme || 'follow');
+    $('#table_v2_map_mode').val(USER.tableBaseSetting.v2_map_mode || 'box');
     updateSwitch('#table_v2_tier_switch', USER.tableBaseSetting.v2_tier_enabled !== false);
     $('#table_v2_tier_main_count').val(USER.tableBaseSetting.v2_tier_main_count ?? 10);
     updateSwitch('#table_v2_reminders_switch', USER.tableBaseSetting.v2_reminders_enabled !== false);
