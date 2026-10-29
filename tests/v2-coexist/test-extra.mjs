@@ -67,40 +67,50 @@ await assert.rejects(ER.askExtra('s', 'u', '自定义'), /地址或模型没填|
 console.log('✓ 额外请求选主 API / 自定义 API');
 
 // 套用酒馆预设
-const { parsePreset, buildExtraMessages } = await import(REPO + '/core/extraPreset.js');
+const { parsePreset, buildExtraMessages, normalizePreset, SLOT_ID } = await import(REPO + '/core/extraPreset.js');
 const stPreset = {
+  squash_system_messages: false,
   prompts: [
-    { identifier: 'main', name: 'Main Prompt', role: 'system', content: '破限说明 {{user}}' },
+    { identifier: 'main', name: 'Main Prompt', role: 'system', content: '破限说明 {{user}}', enabled: false },
     { identifier: 'worldInfoBefore', name: 'World Info', marker: true },
     { identifier: 'charDescription', name: 'Char', marker: true },
     { identifier: 'chatHistory', name: 'Chat History', marker: true },
     { identifier: 'jailbreak', name: 'Post-History', role: 'system', content: '后置指令' },
     { identifier: 'off', name: '关掉的', role: 'system', content: '不该出现' },
-    { identifier: 'empty', name: '空的', role: 'system', content: '  ' },
     { identifier: 'deep', name: '深度注入', role: 'user', content: '深度0', injection_position: 1, injection_depth: 0 },
+    { identifier: 'deep1', name: '深度1', role: 'system', content: '深度1', injection_position: 1, injection_depth: 1 },
+    { identifier: 'trig', name: '只在续写时', role: 'system', content: '续写', injection_trigger: ['continue'] },
+    { identifier: 'orphan', name: '没放进列表的', role: 'system', content: '孤儿' },
     { identifier: 'prefill', name: '预填充', role: 'assistant', content: '好的，' },
   ],
   prompt_order: [
     { character_id: 100000, order: [{ identifier: 'off', enabled: true }] },
-    { character_id: 100001, order: ['main', 'worldInfoBefore', 'charDescription', 'chatHistory', 'jailbreak', 'off', 'empty', 'deep', 'prefill'].map(identifier => ({ identifier, enabled: identifier !== 'off' })) },
+    { character_id: 100001, order: ['main', 'worldInfoBefore', 'charDescription', 'chatHistory', 'jailbreak', 'off', 'deep', 'deep1', 'trig', 'prefill'].map(identifier => ({ identifier, enabled: identifier !== 'off' })) },
   ],
 };
 const parsed = parsePreset(stPreset, '我的预设');
 assert.equal(parsed.name, '我的预设');
-assert.deepEqual(parsed.items.map(i => i.slot ? '[v2]' : i.content), ['破限说明 {{user}}', '[v2]', '深度0', '后置指令', '好的，'], '按顺序、跳过关掉的和空的、v2 内容放在聊天记录位置');
-assert.throws(() => parsePreset({ foo: 1 }), /对话补全预设/);
-const noSlot = parsePreset({ prompts: [{ identifier: 'a', role: 'system', content: 'A' }, { identifier: 'p', role: 'assistant', content: '预填' }] });
-assert.deepEqual(noSlot.items.map(i => i.slot ? '[v2]' : i.content), ['A', '[v2]', '预填'], '没有聊天记录位置时放在预填充前面');
+assert.deepEqual(parsed.entries.map(e => `${e.id}:${e.enabled}`), ['main:true', `${SLOT_ID}:true`, 'jailbreak:true', 'off:false', 'deep:true', 'deep1:true', 'trig:false', 'prefill:true'], '顺序和开关跟酒馆一样，只认 prompt_order 的开关，占位条目不导入');
+assert.deepEqual(parsed.extras.map(e => e.id), ['orphan'], '没放进列表的单独收着');
+assert.throws(() => parsePreset({ foo: 1 }), /prompts/);
+assert.deepEqual(parsePreset({ data: { prompts: [{ identifier: 'a', role: 'system', content: 'A' }], prompt_order: [{ identifier: 'a', enabled: true }] } }).entries.map(e => e.id), ['a', SLOT_ID], '提示词管理器单独导出的格式也认；没有聊天记录时占位放末尾');
 
 USER.tableBaseSetting.v2_extra_preset = parsed;
 USER.tableBaseSetting.v2_extra_preset_enabled = false;
 assert.equal(buildExtraMessages('S', 'U').length, 2, '没开预设只有两条');
 USER.tableBaseSetting.v2_extra_preset_enabled = true;
-assert.deepEqual(buildExtraMessages('S', 'U').map(m => `${m.role}:${m.content}`), ['system:破限说明 {{user}}', 'system:S', 'user:U', 'user:深度0', 'system:后置指令', 'assistant:好的，']);
+assert.deepEqual(buildExtraMessages('S', 'U').map(m => `${m.role}:${m.content}`), ['system:破限说明 {{user}}', 'system:S', 'system:深度1', 'user:U', 'user:深度0', 'system:后置指令', 'assistant:好的，'], '深度条目插进 v2 内容里');
+// 调顺序、关条目后照新顺序发
+const edited = normalizePreset(parsed);
+edited.entries.reverse();
+edited.entries.find(e => e.id === 'jailbreak').enabled = false;
+USER.tableBaseSetting.v2_extra_preset = edited;
+assert.deepEqual(buildExtraMessages('S', 'U').map(m => m.content), ['好的，', 'S', '深度1', 'U', '深度0', '破限说明 {{user}}']);
+USER.tableBaseSetting.v2_extra_preset = parsed;
 USER.tableBaseSetting.v2_extra_api = 'main';
 let sent = null;
 APP.generateRaw = async (opts) => { sent = opts; return '预设回复'; };
 assert.equal(await ER.askExtra('S', 'U', '预设'), '预设回复');
-assert.equal(Array.isArray(sent.prompt) && sent.prompt.length, 6, '主 API 整组消息发出去');
+assert.equal(Array.isArray(sent.prompt) && sent.prompt.length, 7, '主 API 整组消息发出去');
 USER.tableBaseSetting.v2_extra_preset_enabled = false;
-console.log('✓ 额外请求套用酒馆预设');
+console.log('✓ 额外请求套用酒馆预设：顺序、开关、深度、调顺序');

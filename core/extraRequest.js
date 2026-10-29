@@ -75,7 +75,20 @@ function panel() {
     return el;
 }
 
+// 设置页里的输出框：和底部面板显示同样的内容，设置页开着就能看到
+let inlineTitle = '';
+function inline() {
+    return globalThis.document?.getElementById?.('table_v2_inline_output') || null;
+}
+
 function showPanel(title) {
+    inlineTitle = title;
+    const box = inline();
+    if (box) {
+        box.dataset.state = 'running';
+        box.querySelector('.v2io-status').textContent = `${title}：准备发送…`;
+        box.querySelector('.v2io-body').textContent = '';
+    }
     const el = panel();
     if (!el) return;
     el.style.display = '';
@@ -87,6 +100,11 @@ function showPanel(title) {
 }
 
 function setStatus(text, state) {
+    const box = inline();
+    if (box) {
+        box.querySelector('.v2io-status').textContent = `${inlineTitle}：${text}`;
+        if (state) box.dataset.state = state;
+    }
     const el = panel();
     if (!el) return;
     el.querySelector('.v2rp-status').textContent = text;
@@ -94,13 +112,17 @@ function setStatus(text, state) {
     if (state && state !== 'running' && state !== 'waiting') el.querySelector('.v2rp-stop').style.display = 'none';
 }
 
-function setBody(text) {
-    const el = panel();
-    if (!el) return;
-    const body = el.querySelector('.v2rp-body');
+function scrollSet(body, text) {
     const atBottom = body.scrollTop + body.clientHeight >= body.scrollHeight - 20;
     body.textContent = text;
     if (atBottom) body.scrollTop = body.scrollHeight;
+}
+
+function setBody(text) {
+    const box = inline();
+    if (box) scrollSet(box.querySelector('.v2io-body'), text);
+    const el = panel();
+    if (el) scrollSet(el.querySelector('.v2rp-body'), text);
 }
 
 /**
