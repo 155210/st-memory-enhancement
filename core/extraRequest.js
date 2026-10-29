@@ -38,7 +38,8 @@ export function useMainApi() {
 
 // ---------------------------------------------------------------- 面板
 
-const panelEnabled = () => USER.tableBaseSetting.v2_request_panel !== false && !!globalThis.document?.body;
+let forceOpen = false;
+const panelEnabled = () => (forceOpen || USER.tableBaseSetting.v2_request_panel !== false) && !!globalThis.document?.body;
 
 function panel() {
     if (!panelEnabled()) return null;
@@ -51,6 +52,7 @@ function panel() {
             <b class="v2rp-title"></b>
             <span class="v2rp-status"></span>
             <span class="v2rp-buttons">
+                <button class="menu_button v2rp-test" type="button" title="发一句很短的话，看看额外请求能不能流式输出">测试</button>
                 <button class="menu_button v2rp-stop" type="button">停止</button>
                 <button class="menu_button v2rp-toggle" type="button">收起</button>
                 <button class="menu_button v2rp-close" type="button">关闭</button>
@@ -59,7 +61,10 @@ function panel() {
         <pre class="v2rp-body"></pre>`;
     document.body.appendChild(el);
     el.querySelector('.v2rp-stop').addEventListener('click', () => stopCurrent());
-    el.querySelector('.v2rp-close').addEventListener('click', () => { el.style.display = 'none'; });
+    el.querySelector('.v2rp-test').addEventListener('click', () => {
+        askExtra('你是连接测试助手。', '请用三到五句话介绍一下你自己，正常输出即可。', '测试额外请求').catch(() => {});
+    });
+    el.querySelector('.v2rp-close').addEventListener('click', () => { el.style.display = 'none'; forceOpen = false; });
     el.querySelector('.v2rp-toggle').addEventListener('click', () => {
         const body = el.querySelector('.v2rp-body');
         const hidden = body.style.display === 'none';
@@ -95,6 +100,31 @@ function setBody(text) {
     const atBottom = body.scrollTop + body.clientHeight >= body.scrollHeight - 20;
     body.textContent = text;
     if (atBottom) body.scrollTop = body.scrollHeight;
+}
+
+/**
+ * 手动打开面板：正在请求时显示进度，否则显示上一次额外请求的结果或失败原因
+ * 面板只在写大总结、压缩、画 AI 地图、回填、融合时自己弹出，平时聊天不会出现
+ */
+export function openRequestPanel() {
+    // 手动打开后一直显示到点「关闭」，即使设置里关掉了自动弹出
+    forceOpen = true;
+    const el = panel();
+    if (!el) return;
+    el.style.display = '';
+    if (current) return;
+    const last = DERIVED.any.lastExtraRequest;
+    el.querySelector('.v2rp-stop').style.display = 'none';
+    el.querySelector('.v2rp-title').textContent = last ? `上次：${last.title}` : '额外请求面板';
+    if (!last) {
+        el.dataset.state = 'done';
+        el.querySelector('.v2rp-status').textContent = '这次打开酒馆后还没有发过额外请求。点「测试」发一句话看看流式输出。';
+        el.querySelector('.v2rp-body').textContent = '';
+        return;
+    }
+    el.dataset.state = last.error ? 'error' : 'done';
+    el.querySelector('.v2rp-status').textContent = `${new Date(last.at).toLocaleTimeString()} ${last.error ? `失败：${last.error}` : '完成'}`;
+    el.querySelector('.v2rp-body').textContent = last.result || '';
 }
 
 /** 停止当前请求 */
@@ -174,7 +204,9 @@ async function run(system, user, title) {
         setStatus(`${main ? '主 API' : '自定义 API'} 生成中…`, 'running');
         timer = setInterval(() => {
             if (current?.stopped) return;
-            setStatus(`${main ? '主 API' : '自定义 API'} 生成中… ${((Date.now() - started) / 1000).toFixed(0)} 秒，已收到 ${received.length} 字`, 'running');
+            const noStream = main && typeof globalThis.TavernHelper?.generateRaw !== 'function'
+                ? '（主 API 没装酒馆助手时不能流式，生成完一次性显示；想看流式可以装酒馆助手，或把「额外请求用」改成自定义 API）' : '';
+            setStatus(`${main ? '主 API' : '自定义 API'} 生成中… ${((Date.now() - started) / 1000).toFixed(0)} 秒，已收到 ${received.length} 字${noStream}`, 'running');
         }, 1000);
         const onText = (text) => { received = text; setBody(text); };
         const result = main ? await viaMainApi(system, user, onText) : await viaCustomApi(system, user, onText);
