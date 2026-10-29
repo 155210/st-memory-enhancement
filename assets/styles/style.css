@@ -925,6 +925,8 @@ body[class*="v2-theme-"] .v2-relation-graph {
     font-weight: normal;
     white-space: normal;
     overflow: hidden;
+    /* 酒馆的 #chat 是会滚动的竖向 flex，overflow:hidden 的子元素默认会被压成 0 高，挂在聊天底部时就看不见了 */
+    flex-shrink: 0;
     -webkit-tap-highlight-color: transparent;
 }
 .v2cc *, .v2cc *::before, .v2cc *::after { box-sizing: border-box; }
