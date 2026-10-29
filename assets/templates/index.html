@@ -149,11 +149,15 @@
                                 </label>
                                 <small class="toggle-description justifyLeft">(自定义 API 的地址和密钥填在右边「运行策略」下面的「自定义独立API」里。正文还在生成时会先等它生成完再发，不会抢正文的请求)</small>
                             </div>
-                            <div class="checkbox_label range-block justifyLeft" style="flex-wrap: wrap; gap: 4px 8px;">
-                                <input type="checkbox" id="table_v2_extra_preset_switch"><span>额外请求套用酒馆预设（v2）</span>
-                                <div class="menu_button menu_button_icon" id="table_v2_extra_preset_import" title="选一个酒馆「对话补全预设」的 JSON 文件"><i class="fa-solid fa-file-import"></i><a>导入预设</a></div>
-                                <div class="menu_button menu_button_icon" id="table_v2_extra_preset_clear"><i class="fa-solid fa-trash"></i><a>清除</a></div>
-                                <small class="toggle-description justifyLeft" id="table_v2_extra_preset_info">(还没导入预设)</small>
+                            <div id="table_v2_preset_panel" class="v2p-panel"></div>
+                            <div id="table_v2_inline_output" class="v2-inline-output">
+                                <div class="v2io-head">
+                                    <b>额外请求输出（v2）</b>
+                                    <span class="v2io-status">还没有额外请求。点「测试」发一句话看看流式输出。</span>
+                                    <div class="menu_button v2io-test" title="发一句很短的话，看看额外请求能不能出字、能不能流式">测试</div>
+                                    <div class="menu_button v2io-stop">停止</div>
+                                </div>
+                                <pre class="v2io-body"></pre>
                             </div>
                             <div class="checkbox_label range-block justifyLeft">
                                 <input type="checkbox" id="table_v2_request_panel_switch"><span>额外请求时在底部显示输出面板（v2）</span>
