@@ -1,6 +1,7 @@
 import { APP, DERIVED, USER } from './manager.js';
 import { LLMApiService } from '../services/llmApi.js';
 import { getDecryptedApiKey } from '../scripts/settings/standaloneAPI.js';
+import { buildExtraMessages, presetActive } from './extraPreset.js';
 
 /**
  * @description v2 额外请求（写大总结、压缩、回填、融合、画地图）统一从这里发：
@@ -153,7 +154,7 @@ async function waitForIdle(title) {
     if (Date.now() - start > 0 && Date.now() - start >= 1000) await sleep(1500);
 }
 
-async function viaMainApi(system, user, onText) {
+async function viaMainApi(messages, onText) {
     const helper = globalThis.TavernHelper;
     if (typeof helper?.generateRaw === 'function') {
         const generationId = `memory_v2_${Date.now()}`;
@@ -163,7 +164,7 @@ async function viaMainApi(system, user, onText) {
         source?.on?.('js_stream_token_received_fully', listener);
         try {
             return await helper.generateRaw({
-                ordered_prompts: [{ role: 'system', content: system }, { role: 'user', content: user }],
+                ordered_prompts: messages,
                 should_stream: true,
                 generation_id: generationId,
             });
@@ -172,10 +173,12 @@ async function viaMainApi(system, user, onText) {
         }
     }
     if (typeof APP.generateRaw !== 'function') throw new Error('酒馆版本太旧，没有 generateRaw，请更新酒馆或安装酒馆助手');
-    return await APP.generateRaw({ prompt: user, systemPrompt: system, trimNames: false });
+    // 没套预设时只有 system + user 两条，用老写法兼容旧版酒馆；套了预设就整组消息发
+    if (messages.length === 2) return await APP.generateRaw({ prompt: messages[1].content, systemPrompt: messages[0].content, trimNames: false });
+    return await APP.generateRaw({ prompt: messages, trimNames: false });
 }
 
-async function viaCustomApi(system, user, onText) {
+async function viaCustomApi(messages, onText) {
     const privacy = USER.IMPORTANT_USER_PRIVACY_DATA || {};
     if (!privacy.custom_api_url || !privacy.custom_model_name) throw new Error('自定义 API 的地址或模型没填');
     const keys = String(await getDecryptedApiKey() || '').split(',').map(k => k.trim()).filter(Boolean);
@@ -184,12 +187,12 @@ async function viaCustomApi(system, user, onText) {
         api_url: privacy.custom_api_url,
         api_key: keys[0],
         model_name: privacy.custom_model_name,
-        system_prompt: system,
+        system_prompt: messages[0]?.content || '',
         temperature: USER.tableBaseSetting.custom_temperature,
         max_tokens: Number(USER.tableBaseSetting.custom_max_tokens) || 4096,
     });
     let text = '';
-    return await service.callLLM(user, (chunk) => { text += chunk; onText(text); });
+    return await service.callLLM(messages, (chunk) => { text += chunk; onText(text); });
 }
 
 async function run(system, user, title) {
@@ -201,7 +204,7 @@ async function run(system, user, title) {
     try {
         await waitForIdle(title);
         const main = useMainApi();
-        setStatus(`${main ? '主 API' : '自定义 API'} 生成中…`, 'running');
+        setStatus(`${main ? '主 API' : '自定义 API'}${presetActive() ? '（套用预设）' : ''} 生成中…`, 'running');
         timer = setInterval(() => {
             if (current?.stopped) return;
             const noStream = main && typeof globalThis.TavernHelper?.generateRaw !== 'function'
@@ -209,7 +212,8 @@ async function run(system, user, title) {
             setStatus(`${main ? '主 API' : '自定义 API'} 生成中… ${((Date.now() - started) / 1000).toFixed(0)} 秒，已收到 ${received.length} 字${noStream}`, 'running');
         }, 1000);
         const onText = (text) => { received = text; setBody(text); };
-        const result = main ? await viaMainApi(system, user, onText) : await viaCustomApi(system, user, onText);
+        const messages = buildExtraMessages(system, user);
+        const result = main ? await viaMainApi(messages, onText) : await viaCustomApi(messages, onText);
         if (current.stopped) throw new Error('已手动停止');
         const text = typeof result === 'string' ? result : String(result ?? '');
         DERIVED.any.lastExtraRequest = { at: new Date().toISOString(), title, system, user, result: text };

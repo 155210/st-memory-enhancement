@@ -166,6 +166,8 @@ export const defaultSettings = await switchLanguage('__defaultSettings__', {
     v2_map_mode: 'box',
     // v2：额外请求（大总结、地图、回填、融合）用哪个 API：'' 沿用「表格总结/整理」的「使用主API」，main 主API，custom 自定义API
     v2_extra_api: '',
+    v2_extra_preset_enabled: false,
+    v2_extra_preset: null,
     // v2：额外请求时在屏幕底部显示流式输出面板
     v2_request_panel: true,
     // 预留

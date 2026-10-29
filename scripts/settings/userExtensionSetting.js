@@ -1,5 +1,6 @@
 import { V2 } from '../../core/v2keys.js';
 import {BASE, DERIVED, EDITOR, SYSTEM, USER} from '../../core/manager.js';
+import { parsePreset } from '../../core/extraPreset.js';
 import { applyTheme } from '../../core/themes.js';
 import {updateSystemMessageTableStatus, updateAlternateTable} from "../renderer/tablePushToChat.js";
 import {rebuildSheets , modifyRebuildTemplate, newRebuildTemplate, deleteRebuildTemplate, exportRebuildTemplate, importRebuildTemplate, triggerStepByStepNow} from "../runtime/absoluteRefresh.js";
@@ -344,6 +345,40 @@ function InitBinging() {
     $('#table_v2_extra_api').on('change', function () {
         USER.tableBaseSetting.v2_extra_api = this.value;
     });
+    // v2：额外请求套用酒馆预设
+    $('#table_v2_extra_preset_switch').change(function () {
+        if (this.checked && !USER.tableBaseSetting.v2_extra_preset) {
+            this.checked = false;
+            return EDITOR.error('先点「导入预设」选一个酒馆预设文件');
+        }
+        USER.tableBaseSetting.v2_extra_preset_enabled = this.checked;
+    });
+    $('#table_v2_extra_preset_import').on('click', () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'application/json,.json';
+        input.addEventListener('change', async () => {
+            const file = input.files?.[0];
+            if (!file) return;
+            try {
+                const preset = parsePreset(JSON.parse(await file.text()), file.name.replace(/\.json$/i, ''));
+                USER.tableBaseSetting.v2_extra_preset = preset;
+                USER.tableBaseSetting.v2_extra_preset_enabled = true;
+                updateSwitch('#table_v2_extra_preset_switch', true);
+                showPresetInfo();
+                EDITOR.success(`已导入预设「${preset.name}」，共 ${preset.items.length - 1} 条，额外请求会套用它`);
+            } catch (error) {
+                EDITOR.error('导入预设失败', error.message, error);
+            }
+        });
+        input.click();
+    });
+    $('#table_v2_extra_preset_clear').on('click', () => {
+        USER.tableBaseSetting.v2_extra_preset = null;
+        USER.tableBaseSetting.v2_extra_preset_enabled = false;
+        updateSwitch('#table_v2_extra_preset_switch', false);
+        showPresetInfo();
+    });
     $('#table_v2_request_panel_switch').change(function () {
         USER.tableBaseSetting.v2_request_panel = this.checked;
     });
@@ -655,6 +690,8 @@ export function renderSetting() {
     $('#table_v2_map_mode').val(USER.tableBaseSetting.v2_map_mode || 'box');
     $('#table_v2_extra_api').val(USER.tableBaseSetting.v2_extra_api || '');
     updateSwitch('#table_v2_request_panel_switch', USER.tableBaseSetting.v2_request_panel !== false);
+    updateSwitch('#table_v2_extra_preset_switch', USER.tableBaseSetting.v2_extra_preset_enabled === true);
+    showPresetInfo();
     updateSwitch('#table_v2_tier_switch', USER.tableBaseSetting.v2_tier_enabled !== false);
     $('#table_v2_tier_main_count').val(USER.tableBaseSetting.v2_tier_main_count ?? 10);
     updateSwitch('#table_v2_reminders_switch', USER.tableBaseSetting.v2_reminders_enabled !== false);
@@ -793,4 +830,12 @@ export function refreshRebuildTemplate() {
         console.log("默认", USER.tableBaseSetting.lastSelectedTemplate)
         $('#rebuild--select').val(USER.tableBaseSetting.lastSelectedTemplate);
     }
+}
+
+/** v2：显示导入的预设名字和条数 */
+function showPresetInfo() {
+    const preset = USER.tableBaseSetting.v2_extra_preset;
+    if (!preset?.items) return $('#table_v2_extra_preset_info').text('(还没导入预设)');
+    const names = preset.items.filter(i => !i.slot).map(i => i.name || i.role).slice(0, 8).join('、');
+    $('#table_v2_extra_preset_info').text(`(预设「${preset.name}」：${preset.items.length - 1} 条，${names}${preset.items.length > 9 ? '…' : ''}；v2 的任务和数据放在「聊天记录」的位置)`);
 }
