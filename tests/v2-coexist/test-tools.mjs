@@ -135,6 +135,14 @@ assert.match(svg, /<svg[\s\S]*青梅竹马[\s\S]*<\/svg>/);
 assert.equal(buildGraph(sheets, 2).nodes.length, 2, '人数上限');
 console.log('✓ 关系图：关系实线、同场虚线、布局在画布内、人数上限');
 
+const withPairs = [...sheets, mkChat('角色关系表', ['角色A', '角色B', '关系', '#关系变化'], [['悠悠', '陈默', '暗恋', ''], ['陈默', '林悠悠', '重复的一对', ''], ['苏晴', '陈默', '宿敌', ''], ['<user>', '林悠悠', '和社交表重复', ''], ['新人', '苏晴', '师徒', '']])];
+const g2 = buildGraph(withPairs, 30);
+const pairEdges = g2.edges.filter(e => e.kind === 'pair').map(e => `${e.a}-${e.b}-${e.label}`).sort();
+assert.deepEqual(pairEdges, ['林悠悠-陈默-暗恋', '苏晴-陈默-宿敌', '新人-苏晴-师徒'].sort(), '外号换主名、同一对只画一次、和你的关系以社交表为准');
+assert.ok(g2.nodes.find(n => n.id === '新人'), '只在关系表里的人也画出来');
+assert.match(renderGraphSvg(g2, layoutGraph(g2, 800, 600)), /var\(--v2g-pair\)[\s\S]*宿敌/);
+console.log('✓ 关系图：角色关系表的角色之间关系');
+
 const { applyTheme } = await import(REPO + '/core/themes.js');
 const classes = new Set();
 globalThis.document = { body: { classList: { add: c => classes.add(c), remove: c => classes.delete(c) } } };

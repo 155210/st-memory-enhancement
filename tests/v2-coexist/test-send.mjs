@@ -25,7 +25,7 @@ const SM = await import(REPO + '/core/summaryManager.js');
 DERIVED.any.chatSheetMap = {};
 // 阶段 3：角色分档发送、条件块、定时提醒、注入预览
 const { getTablePromptByPiece, initTableData } = await import(REPO + '/index.js');
-const { computeTiers, rowTier } = await import(REPO + '/core/sendTiers.js');
+const { computeTiers, rowTier, buildTieredRows } = await import(REPO + '/core/sendTiers.js');
 const { applyConditionalBlocks, dueReminderText, lastInjection, parseReminders } = await import(REPO + '/core/promptExtras.js');
 
 const setRow = (s, r, values) => s.getCellsByRowIndex(r).forEach((c, i) => { if (i) c.data.value = values[i - 1] ?? ''; });
@@ -79,6 +79,14 @@ assert.doesNotMatch(hookBlock, /删最早的/, '条件不成立不发');
 assert.match(hookBlock, /事件多了/);
 assert.doesNotMatch(hookBlock, /事件少/);
 console.log('✓ 角色分档：在场完整、主要简要、其余名册、行号不变；大总结不发规则；条件块');
+
+const pairSheet = mkChat('角色关系表', ['角色A', '角色B', '关系', '#关系变化'], [['悠悠', '陈默', '暗恋', ''], ['王五', '苏晴', '邻居', ''], ['陈默', '王五', '旧识', ''], ['<user>', '苏晴', '同事', '']]);
+const pairRows = buildTieredRows(pairSheet, tiers);
+assert.match(pairRows.text, /^0,悠悠,陈默,暗恋/m, '有一个在场就发整行');
+assert.match(pairRows.text, /^2,陈默,王五,旧识/m, '有一个是主要角色也发整行');
+assert.doesNotMatch(pairRows.text, /^3,/m, '和你的关系看另一个人');
+assert.match(pairRows.text, /【以下关系[^\n]*1:王五-苏晴、3:<user>-苏晴/, '两个人都不在场只列行号和名字');
+console.log('✓ 角色关系表按在场发送');
 
 assert.equal(applyConditionalBlocks('a{{#if 不存在的表>1}}b{{/if}}c{{#if 写错了}}d{{/if}}', sheets), 'acd', '没有的表不成立，写错的条件不吞内容');
 assert.equal(applyConditionalBlocks('{{#if 轮次>=1}}x{{/if}}', sheets), 'x');

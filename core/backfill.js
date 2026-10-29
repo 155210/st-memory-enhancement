@@ -75,7 +75,7 @@ export async function runBackfill(plan, applyEdits, { onProgress = () => {}, sho
         const raw = await summaryHooks.ask(system, user, `回填第 ${from}–${batch.target} 层`);
         // 等回复期间表格实例可能被换成别的楼层，重新载入
         const sheets = load();
-        result.edits += applyEdits(raw, sheets.filter(sheet => sheet.enable));
+        result.edits += applyEdits(raw, sheets.filter(sheet => sheet.enable && !isArchiveSheet(sheet)));
         const target = chat[batch.target];
         sheets.forEach(sheet => sheet.save(target, true));
         source = target;

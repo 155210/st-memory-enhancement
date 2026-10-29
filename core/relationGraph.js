@@ -1,10 +1,12 @@
 import { USER } from './manager.js';
 import { getHeaders, isNameKeyedSheet, parseNameCell, stripColumnMark } from './rowIdentity.js';
 import { collectNames, findRolesInText, readRows, recentText, summaryConfig } from './summaryManager.js';
+import { isPairSheet } from './sendTiers.js';
 
 /**
  * @description P12 角色关系图：读角色表、社交表和大总结的「涉及角色」，在浏览器里用 SVG 画成关系网
  * @description - 实线：社交表里角色对 <user> 的关系，线上写关系词
+ * @description - 彩色实线：角色关系表里角色和角色之间的关系
  * @description - 虚线：在同几条总结里一起出现过的两个人，越常一起出现线越深
  * @description 只给你看，不发给 AI；最多 30 个人，按出场多少挑
  */
@@ -57,11 +59,38 @@ export function buildGraph(sheets, maxNodes = 30) {
         }
     }
 
+    // 角色关系表：角色之间的关系
+    const pairs = [];
+    const toId = (name) => {
+        const n = parseNameCell(name).primary;
+        if (!n) return '';
+        if (n === userName || /^(<user>|\{\{user\}\}|你|我|主角)$/i.test(n)) return userName;
+        return names.get(n) || n;
+    };
+    const hasUserRelation = new Set(relations.map(e => e.b));
+    const seenPairs = new Set();
+    for (const sheet of sheets.filter(isPairSheet)) {
+        const col = getHeaders(sheet).findIndex((h, i) => i >= 2 && /关系/.test(stripColumnMark(h)));
+        for (const row of readRows(sheet)) {
+            const a = toId(row.values[0]), b = toId(row.values[1]);
+            const label = clean(row.values[col >= 0 ? col : 2]);
+            if (!a || !b || a === b || !label) continue;
+            if ((a === userName && hasUserRelation.has(b)) || (b === userName && hasUserRelation.has(a))) continue;
+            const key = [a, b].sort().join('\u0000');
+            if (seenPairs.has(key)) continue;
+            seenPairs.add(key);
+            pairs.push({ a, b, label: short(label, 10), weight: 1, kind: 'pair' });
+            if (a !== userName) bump(a, 1);
+            if (b !== userName) bump(b, 1);
+        }
+    }
+
     const picked = [...weight.entries()].sort((a, b) => b[1] - a[1]).slice(0, Math.max(1, maxNodes - 1)).map(([n]) => n);
     const keep = new Set([userName, ...picked]);
     const nodes = [{ id: userName, label: userName, weight: Infinity, isUser: true }, ...picked.map(n => ({ id: n, label: n, weight: weight.get(n), isUser: false }))];
     const edges = [
         ...relations.filter(e => keep.has(e.b)),
+        ...pairs.filter(e => keep.has(e.a) && keep.has(e.b)),
         ...[...together.entries()].map(([key, n]) => { const [a, b] = key.split('\u0000'); return { a, b, label: `同场 ${n} 次`, weight: n, kind: 'together' }; })
             .filter(e => keep.has(e.a) && keep.has(e.b) && e.weight >= 2),
     ];
@@ -99,7 +128,7 @@ export function layoutGraph(graph, width = 800, height = 600, iterations = 300) 
             if (!a || !b) continue;
             let dx = a.x - b.x, dy = a.y - b.y;
             const d = Math.max(0.01, Math.hypot(dx, dy));
-            const f = ((d * d) / k) * (e.kind === 'relation' ? 1 : 0.3);
+            const f = ((d * d) / k) * (e.kind === 'together' ? 0.3 : 1);
             dx = (dx / d) * f; dy = (dy / d) * f;
             disp.get(e.a).x -= dx; disp.get(e.a).y -= dy;
             disp.get(e.b).x += dx; disp.get(e.b).y += dy;
@@ -123,8 +152,9 @@ export function renderGraphSvg(graph, pos, width = 800, height = 600) {
         const a = pos.get(e.a), b = pos.get(e.b);
         if (!a || !b) return '';
         const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
-        if (e.kind === 'relation') {
-            return `<g class="v2g-edge" data-a="${esc(e.a)}" data-b="${esc(e.b)}"><line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="var(--v2g-line)" stroke-width="1.5"/><text x="${mx}" y="${my - 4}" class="v2g-label" text-anchor="middle">${esc(e.label)}</text></g>`;
+        if (e.kind === 'relation' || e.kind === 'pair') {
+            const stroke = e.kind === 'pair' ? 'var(--v2g-pair)' : 'var(--v2g-line)';
+            return `<g class="v2g-edge" data-a="${esc(e.a)}" data-b="${esc(e.b)}"><line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="${stroke}" stroke-width="1.5"/><text x="${mx}" y="${my - 4}" class="v2g-label" text-anchor="middle">${esc(e.label)}</text></g>`;
         }
         const opacity = (0.25 + 0.6 * (e.weight / maxTogether)).toFixed(2);
         return `<g class="v2g-edge" data-a="${esc(e.a)}" data-b="${esc(e.b)}"><line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="var(--v2g-line)" stroke-dasharray="4 4" stroke-opacity="${opacity}"><title>${esc(e.a)} 和 ${esc(e.b)}：${esc(e.label)}</title></line></g>`;
@@ -137,7 +167,7 @@ export function renderGraphSvg(graph, pos, width = 800, height = 600) {
         return `<g class="v2g-node" data-id="${esc(n.id)}" transform="translate(${p.x},${p.y})" style="cursor:grab"><circle r="${r.toFixed(1)}" fill="${n.isUser ? 'var(--v2g-user)' : 'var(--v2g-node)'}" stroke="var(--v2g-line)"/><text y="${(r + 13).toFixed(1)}" text-anchor="middle" class="v2g-name">${esc(n.label)}</text></g>`;
     }).join('');
     return `<svg class="v2-relation-graph" viewBox="0 0 ${width} ${height}" width="100%" style="height:auto;max-height:75vh;touch-action:none;user-select:none;-webkit-user-select:none">
-<style>.v2-relation-graph{--v2g-line:var(--SmartThemeBodyColor,#888);--v2g-node:var(--SmartThemeQuoteColor,#6a9);--v2g-user:var(--SmartThemeEmColor,#c96)}.v2g-label{font-size:11px;fill:var(--SmartThemeBodyColor,#ccc);opacity:.8}.v2g-name{font-size:13px;fill:var(--SmartThemeBodyColor,#eee)}</style>
+<style>.v2-relation-graph{--v2g-line:var(--SmartThemeBodyColor,#888);--v2g-node:var(--SmartThemeQuoteColor,#6a9);--v2g-user:var(--SmartThemeEmColor,#c96);--v2g-pair:var(--SmartThemeQuoteColor,#6a9)}.v2g-label{font-size:11px;fill:var(--SmartThemeBodyColor,#ccc);opacity:.8}.v2g-name{font-size:13px;fill:var(--SmartThemeBodyColor,#eee)}</style>
 <g class="v2g-viewport">${lines}${circles}</g></svg>`;
 }
 

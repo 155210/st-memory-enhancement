@@ -102,6 +102,7 @@ const shorten = (value, max) => {
  * @returns {{ text: string, counts: { full: number, brief: number, roster: number } } | null} 不是角色类表时返回 null
  */
 export function buildTieredRows(sheet, tiers) {
+    if (tiers && isPairSheet(sheet)) return buildPairRows(sheet, tiers);
     if (!tiers || !isNameKeyedSheet(sheet)) return null;
     const config = tierConfig();
     const rows = readRows(sheet);
@@ -123,5 +124,36 @@ export function buildTieredRows(sheet, tiers) {
     }
     let text = lines.length ? lines.join('\n') + '\n' : '';
     if (roster.length) text += `【名册：以下角色本轮不在场，只列行号和名字，已在表里，不要再插入；需要时按名字 updateRow】${roster.join('、')}\n`;
+    return { text, counts };
+}
+
+/** 角色关系表：前两列是「角色A」「角色B」 */
+export function isPairSheet(sheet) {
+    const [a, b] = getHeaders(sheet).map(stripColumnMark);
+    return /^角色\s*[A-ZＡ-Ｚ甲乙1-2一二]$/i.test(a || '') && /^角色\s*[A-ZＡ-Ｚ甲乙1-2一二]$/i.test(b || '');
+}
+
+/** 关系表：两人里有一个在场或是主要角色就发整行，其余只列「行号:谁-谁」 */
+function buildPairRows(sheet, tiers) {
+    const rows = readRows(sheet);
+    const counts = { full: 0, brief: 0, roster: 0 };
+    if (!rows.length) return { text: '（此表格当前为空）\n', counts };
+    const lines = [];
+    const roster = [];
+    const rank = { full: 2, brief: 1, roster: 0 };
+    for (const row of rows) {
+        const a = rowTier(row.values[0], tiers), b = rowTier(row.values[1], tiers);
+        // 你自己（或空名）一律算 full，这里只看另一个人
+        const other = USER_NAMES().has(parseNameCell(row.values[0]).primary) ? b : USER_NAMES().has(parseNameCell(row.values[1]).primary) ? a : (rank[a] >= rank[b] ? a : b);
+        if (other === 'roster') {
+            counts.roster++;
+            roster.push(`${row.rowIndex}:${clean(row.values[0])}-${clean(row.values[1])}`);
+        } else {
+            counts[other]++;
+            lines.push(`${row.rowIndex},${row.values.join(',')}`);
+        }
+    }
+    let text = lines.length ? lines.join('\n') + '\n' : '';
+    if (roster.length) text += `【以下关系的两个人本轮都不在场，只列行号和名字，已在表里，不要再插入；需要时按行号 updateRow】${roster.join('、')}\n`;
     return { text, counts };
 }

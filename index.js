@@ -33,7 +33,7 @@ import { findActiveOriginal, importOriginalSettingsOnce, offerChatImport, import
 
 console.log("______________________记忆插件：开始加载______________________")
 
-const VERSION = '2.2.19-v2.7'
+const VERSION = '2.2.19-v2.8'
 // v2 的版本检查地址（v2 单独一个仓库，和原版的更新提示互不干扰）
 const V2_MANIFEST_URL = 'https://raw.githubusercontent.com/155210/st-memory-enhancement-v2/refs/heads/master/manifest.json'
 
@@ -240,7 +240,7 @@ export function getTablePrompt(eventData, isPureData = false) {
 export function getTablePromptByPiece(piece, isPureData = false) {
     const hash_sheets = BASE.getPieceHash(piece)
     const allSheets = BASE.hashSheetsToSheets(hash_sheets)
-    // 归档表只用来召回，不整张发（它排在最后，前面表格的序号不变）
+    // 归档表只用来召回，不整张发，也不占序号（改表时同样跳过它）
     const sheets = allSheets
         .filter(sheet => sheet.enable)
         .filter(sheet => sheet.sendToContext !== false)
@@ -455,7 +455,8 @@ export function parseTableEditTag(piece, mesIndex = -1, ignoreCheck = false) {
 
     // 获取上一个表格数据
     const { piece: prePiece } = mesIndex === -1 ? BASE.getLastSheetsPiece(1) : BASE.getLastSheetsPiece(mesIndex - 1, 1000, false)
-    const sheets = BASE.hashSheetsToSheets(BASE.getPieceHash(prePiece)).filter(sheet => sheet.enable)
+    // 序号和发给 AI 的一致：归档表不发，也不算序号（这样它排在哪里都不影响别的表）
+    const sheets = BASE.hashSheetsToSheets(BASE.getPieceHash(prePiece)).filter(sheet => sheet.enable && !isArchiveSheet(sheet))
     console.log("执行指令时的信息", sheets)
     // 最新一层：程序管大总结时，不执行 AI 对大总结的增删和对事件历史的删除；重建老楼层照旧执行
     const live = mesIndex === -1
@@ -495,7 +496,7 @@ export function executeTableEditActions(matches, referencePiece) {
     console.log("解析到的表格编辑指令", tableEditActions)
 
     // 核心修复：不再信任传入的 referencePiece 上的快照，而是直接从 BASE 获取当前激活的、唯一的 Sheet 实例。
-    const sheets = BASE.getChatSheets().filter(sheet => sheet.enable)
+    const sheets = BASE.getChatSheets().filter(sheet => sheet.enable && !isArchiveSheet(sheet))
     if (!sheets || sheets.length === 0) {
         console.error("executeTableEditActions: 未找到任何启用的表格实例，操作中止。");
         return false;
@@ -1387,7 +1388,7 @@ jQuery(async () => {
         const touch = window.matchMedia?.('(pointer: coarse)')?.matches
         const id = `v2_graph_${Date.now()}`
         const hint = touch ? '拖圆点调位置，单指拖空白处平移，双指捏合缩放。' : '拖圆点调位置，拖空白处平移，滚轮缩放。'
-        const html = `<div id="${id}"><p style="margin:0 0 4px;font-size:13px">实线：对你的关系；虚线：在大总结里一起出现过，越深越常一起。${hint}</p>${renderGraphSvg(graph, pos, width, height)}</div>`
+        const html = `<div id="${id}"><p style="margin:0 0 4px;font-size:13px">灰色实线：对你的关系；彩色实线：角色关系表里角色之间的关系；虚线：在大总结里一起出现过，越深越常一起。${hint}</p>${renderGraphSvg(graph, pos, width, height)}</div>`
         setTimeout(() => attachGraphInteraction(document.querySelector(`#${id} svg`), graph, pos), 50)
         await EDITOR.callGenericPopup(html, EDITOR.POPUP_TYPE.TEXT, '', { wide: true, large: true })
     })
