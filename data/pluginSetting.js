@@ -150,6 +150,12 @@ export const defaultSettings = await switchLanguage('__defaultSettings__', {
     v2_summary_keep: 3,
     v2_summary_recall_count: 5,
     v2_summary_recall_depth: 3,
+    // v2：角色类表分档发送（在场完整、主要角色简要、其余只进名册）
+    v2_tier_enabled: true,
+    v2_tier_main_count: 10,
+    // v2：定时提示词，每行「间隔轮数|提醒内容」
+    v2_reminders_enabled: true,
+    v2_reminders: '',
     // 预留
     updateIndex:3,
     /**

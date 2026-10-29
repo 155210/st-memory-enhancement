@@ -43,7 +43,7 @@ function columnIndex(sheet, name) {
 }
 
 /** 读出全部数据行：[{ rowIndex, values: [] }] */
-function readRows(sheet) {
+export function readRows(sheet) {
     const rows = [];
     for (let r = 1; r < sheet.getRowCount(); r++) {
         rows.push({ rowIndex: r - 1, values: (sheet.getCellsByRowIndex(r) || []).slice(1).map(c => clean(c?.data?.value)) });
@@ -387,7 +387,7 @@ function appendPast(sheets, past) {
 // ---------------------------------------------------------------- 发送时：召回和「几天前」
 
 /** 最近几层正文 + 本轮输入 */
-function recentText(depth) {
+export function recentText(depth) {
     const chat = USER.getContext().chat || [];
     return chat.slice(-depth * 2).map(m => m?.mes || '').join('\n');
 }
