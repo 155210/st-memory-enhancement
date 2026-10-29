@@ -35,7 +35,7 @@ console.log('✓ V2.characterCard 键');
 
 // 默认值：规格里列出的每个键都有，类型对
 const expected = {
-  v2_card_enabled: true, v2_card_position: 'last_message', v2_card_tag: 'Calculated_data', v2_card_field_map: '',
+  v2_card_enabled: true, v2_card_position: 'chat_bottom', v2_card_tag: 'Calculated_data', v2_card_ignore_tags: '', v2_card_field_map: '',
   v2_card_short_limit: 20, v2_card_font_size: 14, v2_card_layout: '', v2_card_private_tables: '角色信息表格',
   v2_card_history_points: 50, v2_card_rule_check: true, v2_card_jump_threshold: 20,
 };

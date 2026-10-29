@@ -64,6 +64,10 @@ function initCharacterCardSettings() {
         $(this).val(setting.v2_card_tag);
         refreshCharacterCardSoon();
     });
+    $('#table_v2_card_ignore_tags').on('change', function () {
+        setting.v2_card_ignore_tags = String($(this).val() || '').trim();
+        refreshCharacterCardSoon();
+    });
     $('#table_v2_card_field_map').on('change', function () {
         setting.v2_card_field_map = String(this.value || '');
         refreshCharacterCardSoon();
@@ -144,6 +148,7 @@ function loadCharacterCardSettings() {
     $('#table_v2_card_options').toggle(enabled);
     $('#table_v2_card_position').val(setting.v2_card_position === 'chat_bottom' ? 'chat_bottom' : 'last_message');
     $('#table_v2_card_tag').val(setting.v2_card_tag || 'Calculated_data');
+    $('#table_v2_card_ignore_tags').val(setting.v2_card_ignore_tags || '');
     $('#table_v2_card_field_map').val(setting.v2_card_field_map || '');
     Object.entries(CARD_NUMBER_SETTINGS).forEach(([key, { fallback }]) => $(`#table_v2_card_${key}`).val(setting[`v2_card_${key}`] ?? fallback));
     $('#table_v2_card_private_tables').val(setting.v2_card_private_tables ?? '角色信息表格');
