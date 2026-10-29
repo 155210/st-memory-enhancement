@@ -10,7 +10,7 @@
             <div class="inline-drawer-content">
                 <div id="memory_enhancement_settings_inline_drawer_content">
                     <!-- 记忆增强表格管理 -->
-                    <div style=" display: flex; flex-direction: row; justify-content: space-between; ">
+                    <div style=" display: flex; flex-direction: row; flex-wrap: wrap; gap: 6px; justify-content: space-between; ">
                         <div style=" display: flex; flex-direction: row; gap: 10px;">
                             <div class="menu_button_icon menu_button interactable">
                                 <i class="fa-brands fa-github fa-lg"></i>
@@ -34,6 +34,10 @@
                         <div class="menu_button_icon menu_button interactable" id="table_v2_merge_duplicates_button" title="把角色类表里同名的重复行合成一行">
                             <i class="fa-solid fa-object-group"></i>
                             <a>合并重复角色</a>
+                        </div>
+                        <div class="menu_button_icon menu_button interactable" id="table_v2_sync_template_button" title="把全局模板的规则、表头和新表同步到当前聊天，不动已有数据">
+                            <i class="fa-solid fa-arrows-rotate"></i>
+                            <a>同步模板到本聊天</a>
                         </div>
                         <div class="menu_button_icon menu_button interactable" id="table_debug_log_button">
                             <i class="fa-solid fa-bug"></i>

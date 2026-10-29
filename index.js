@@ -1,5 +1,6 @@
 import { V2 } from './core/v2keys.js';
 import { findRowByName, isNameKeyedSheet, mergeDuplicateRows, mergeNameCells, writeRowValues } from './core/rowIdentity.js';
+import { syncChatSheetsWithTemplates } from './core/templateSync.js';
 import { APP, BASE, DERIVED, EDITOR, SYSTEM, USER } from './core/manager.js';
 import { openTableRendererPopup, updateSystemMessageTableStatus } from "./scripts/renderer/tablePushToChat.js";
 import { loadSettings } from "./scripts/settings/userExtensionSetting.js";
@@ -1129,6 +1130,29 @@ jQuery(async () => {
         USER.saveChat()
         await updateSheetsView()
         EDITOR.success(`已合并 ${preview.reduce((n, x) => n + x.merged, 0)} 行重复角色`)
+    })
+    // 把全局模板的规则、表头和新表同步到当前聊天，不动已有数据（老档换新模板用）
+    $(document).on('click', '#table_v2_sync_template_button', async function () {
+        const { piece: tablePiece } = BASE.getLastSheetsPiece()
+        const { piece: currentPiece } = USER.getChatPiece()
+        if (!currentPiece) return EDITOR.error('没有可以保存表格的 AI 消息，请先聊一轮')
+        const chatSheets = BASE.hashSheetsToSheets(BASE.getPieceHash(tablePiece))
+        const preview = syncChatSheetsWithTemplates(chatSheets, BASE.templates, true)
+        const lines = [
+            ...preview.updated.map(x => `更新规则或表头：${x}`),
+            ...preview.columnsAdded.map(x => `追加列：${x}`),
+            ...preview.added.map(x => `新建表（排在最后）：${x}`),
+            ...preview.skippedHeaders.map(x => `只同步规则、表头不动：${x}`),
+        ]
+        if (!lines.length) return EDITOR.success('本聊天的表格已经和模板一致')
+        const ok = await EDITOR.callGenericPopup(`把全局模板同步到这个聊天：<br><br>${lines.join('<br>')}<br><br>已有的表格内容一格都不动；结果存到最新一层，可以回退。`, EDITOR.POPUP_TYPE.CONFIRM, '同步模板到本聊天', { okButton: '同步', cancelButton: '取消' })
+        if (!ok) return
+        syncChatSheetsWithTemplates(chatSheets, BASE.templates)
+        chatSheets.forEach(sheet => sheet.save(currentPiece, true))
+        BASE.updateSelectBySheetStatus()
+        USER.saveChat()
+        await updateSheetsView()
+        EDITOR.success('已把模板同步到本聊天')
     })
     // 点击打开查看表格日志按钮
     $(document).on('click', '#table_debug_log_button', function () {
