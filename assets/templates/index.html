@@ -113,12 +113,13 @@
                                 <div class="v2s-title"><i class="fa-solid fa-layer-group"></i><span>大总结</span></div>
                                 <div class="checkbox_label range-block justifyLeft">
                                     <input type="checkbox" id="table_v2_summary_switch"><span>大总结交给程序管</span>
-                                    <small class="toggle-description justifyLeft">(事件历史满了另发一次请求写大总结；大总结多了逐级压成「卷」「篇」，原文移进「总结归档」表；按本轮出场的人从归档找回旧事；给大总结里的日期标上几天前)</small>
+                                    <small class="toggle-description justifyLeft">(事件历史满了另发一次请求写大总结；最后几条事件留着接下一轮；大总结多了逐级压成「卷」「篇」，原文移进「总结归档」表；按本轮出场的人从归档找回旧事；给大总结里的日期标上几天前)</small>
                                 </div>
                                 <div id="table_v2_summary_options" class="v2s-fields">
                                     <label>事件满几条写大总结 <input type="number" id="table_v2_summary_event_threshold" class="text_pole" min="2"></label>
                                     <label>几条压成一条 <input type="number" id="table_v2_summary_batch" class="text_pole" min="2"></label>
-                                    <label>最近几条不压 <input type="number" id="table_v2_summary_keep" class="text_pole" min="0"></label>
+                                    <label>写大总结时事件历史留几条 <input type="number" id="table_v2_summary_event_keep" class="text_pole" min="0"></label>
+                                    <label>最近几条大总结不压 <input type="number" id="table_v2_summary_keep" class="text_pole" min="0"></label>
                                     <label>每轮最多找回几条旧事 <input type="number" id="table_v2_summary_recall_count" class="text_pole" min="0"></label>
                                 </div>
                             </section>
@@ -168,9 +169,9 @@
                                 </div>
                                 <div class="checkbox_label range-block justifyLeft">
                                     <input type="checkbox" id="table_v2_reminders_switch"><span>定时提醒</span>
-                                    <small class="toggle-description justifyLeft">(每行写「间隔轮数|提醒内容」，例如「10|检查悬念簿里有没有该收的伏笔」，到点时附在表格提示词后面)</small>
+                                    <small class="toggle-description justifyLeft">(每行写「间隔轮数|提醒内容」，例如「10|检查任务表里有没有拖太久的事」，到点时附在表格提示词后面)</small>
                                 </div>
-                                <textarea id="table_v2_reminders" class="text_pole wide100p" rows="3" placeholder="10|检查悬念簿里有没有该收的伏笔&#10;30|推进主线"></textarea>
+                                <textarea id="table_v2_reminders" class="text_pole wide100p" rows="3" placeholder="10|检查任务表里有没有拖太久的事&#10;30|推进主线"></textarea>
                             </section>
 
                             <section class="v2s-card">

@@ -7,6 +7,7 @@ import { stripColumnMark } from './rowIdentity.js';
  * @description - 同名表：复制说明和增删改提示词；表头按模板改（例如加 # ! 标记）；模板在末尾多出的列追加到表尾
  * @description - 本聊天没有的表：按模板新建，排在最后，已有表的序号不变
  * @description - 列对不上的表只同步提示词，表头不动，并写进报告
+ * @description - 模板里已经没有的表：停用（不发给 AI、不占序号），内容一格不删，老楼层也不动
  */
 
 const RULE_KEYS = ['note', 'initNode', 'insertNode', 'updateNode', 'deleteNode'];
@@ -17,10 +18,10 @@ const headerValues = (sheet) => (sheet.getCellsByRowIndex(0) || []).slice(1).map
  * @param {Object[]} chatSheets 本聊天的表格实例（全部，不只启用的）
  * @param {Object[]} templates 全局模板数据（BASE.templates）
  * @param {boolean} dryRun 只出报告不改
- * @returns {{ updated: string[], added: string[], columnsAdded: string[], skippedHeaders: string[] }}
+ * @returns {{ updated: string[], added: string[], columnsAdded: string[], skippedHeaders: string[], disabled: string[] }}
  */
 export function syncChatSheetsWithTemplates(chatSheets, templates, dryRun = false) {
-    const report = { updated: [], added: [], columnsAdded: [], skippedHeaders: [] };
+    const report = { updated: [], added: [], columnsAdded: [], skippedHeaders: [], disabled: [] };
     for (const templateData of templates) {
         if (templateData.enable === false) continue;
         const template = new BASE.SheetTemplate(templateData.uid);
@@ -58,6 +59,12 @@ export function syncChatSheetsWithTemplates(chatSheets, templates, dryRun = fals
             }
         }
         if (changed) report.updated.push(sheet.name);
+    }
+    const known = new Set(templates.map(t => new BASE.SheetTemplate(t.uid).name));
+    for (const sheet of chatSheets) {
+        if (sheet.enable === false || known.has(sheet.name)) continue;
+        report.disabled.push(sheet.name);
+        if (!dryRun) sheet.enable = false;
     }
     return report;
 }

@@ -24,7 +24,7 @@ await import(REPO + '/index.js');
 const SM = await import(REPO + '/core/summaryManager.js');
 DERIVED.any.chatSheetMap = {};
 
-Object.assign(USER.tableBaseSetting, { v2_summary_enabled: true, v2_summary_event_threshold: 3, v2_summary_batch: 2, v2_summary_keep: 1, v2_summary_recall_count: 5, use_main_api: true });
+Object.assign(USER.tableBaseSetting, { v2_summary_enabled: true, v2_summary_event_threshold: 3, v2_summary_event_keep: 0, v2_summary_batch: 2, v2_summary_keep: 1, v2_summary_recall_count: 5, use_main_api: true });
 
 const setRow = (s, r, values) => s.getCellsByRowIndex(r).forEach((c, i) => { if (i) c.data.value = values[i - 1] ?? ''; });
 const mkChat = (name, headers, rows = []) => {
@@ -269,4 +269,33 @@ console.log('✓ 任务表自动清理已完成的');
   assert.equal(dump(load(chat[a1]).by('总结归档')).length, 2, '老楼层不变');
   assert.equal(repairArchive('总结归档').restored, 0, '再点一次没有可补的');
   console.log('✓ 改表时带上归档表；丢了的归档能找回');
+}
+
+// 写大总结时事件历史留最后几条：只总结前面的，撤回时不重复
+{
+  DERIVED.any.chatSheetMap = {};
+  chat.length = 0; Object.keys(chatMetadata).forEach(k => delete chatMetadata[k]); asked.length = 0;
+  Object.assign(USER.tableBaseSetting, { v2_summary_event_threshold: 4, v2_summary_event_keep: 2, v2_summary_batch: 50 });
+  const k1 = pushFloor('开场');
+  [
+    mkChat('角色特征表格', ['角色名', '性格'], [['林悠悠', '开朗']]),
+    mkChat('事件历史', ['事件', '日期', '地点', '情绪'], [['一事', '', '', ''], ['二事', '', '', ''], ['三事', '', '', '']]),
+    mkChat('大总结', ['内容', '层级', '楼层范围', '涉及角色'], []),
+    mkChat('总结归档', ['内容', '层级', '楼层范围', '涉及角色'], []),
+  ].forEach(s => s.save(chat[k1], true));
+  assert.deepEqual(await SM.runSummaryPipeline(chat[k1], k1), [], '没满不写');
+  const k2 = pushFloor('满了');
+  addEvents(chat[k1], chat[k2], [['四事', '', '', '']]);
+  const log2 = await SM.runSummaryPipeline(chat[k2], k2);
+  assert.match(log2.join(), /2 条写成 1 条大总结.*留下最后 2 条/);
+  const prompt = asked.at(-1).prompt;
+  assert.ok(prompt.includes('一事') && prompt.includes('二事') && !prompt.includes('三事') && !prompt.includes('四事'), prompt);
+  assert.deepEqual(dump(load(chat[k2]).by('事件历史')).map(r => r[0]), ['三事', '四事'], '最后 2 条留着');
+  assert.equal(dump(load(chat[k2]).by('大总结')).length, 1);
+  const k3 = pushFloor('之后又聊');
+  addEvents(chat[k2], chat[k3], [['五事', '', '', '']]);
+  const undone2 = await SM.undoLastSummary();
+  assert.ok(undone2.ok, undone2.message);
+  assert.deepEqual(dump(load(chat[k3]).by('事件历史')).map(r => r[0]), ['一事', '二事', '三事', '四事', '五事'], '撤回后不重复');
+  console.log('✓ 写大总结时事件历史留最后几条');
 }
