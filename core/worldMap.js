@@ -42,17 +42,29 @@ export function renderBoxMap(tree, present = [], width = 800, height = 560) {
     const parts = [];
     const draw = (node, x, y, w, h, depth) => {
         const isCurrent = node === tree.current;
-        // 按框宽截字，约 12px 一个字
-        const fit = (text) => { const max = Math.max(2, Math.floor((w - 12) / 12)); return text.length > max ? `${text.slice(0, max - 1)}…` : text; };
+        // 按框宽换行（约 13px 一个字），超出行数的最后一行加省略号
+        const perLine = Math.max(2, Math.floor((w - 12) / 13));
+        const wrap = (text, maxLines) => {
+            const chars = [...text];
+            const lines = [];
+            for (let i = 0; i < chars.length && lines.length < maxLines; i += perLine) lines.push(chars.slice(i, i + perLine).join(''));
+            if (chars.length > perLine * maxLines) lines[lines.length - 1] = `${[...lines[lines.length - 1]].slice(0, perLine - 1).join('')}…`;
+            return lines;
+        };
+        const spans = (lines, x0, lineHeight) => lines.map((line, i) => `<tspan x="${x0.toFixed(1)}" dy="${i ? lineHeight : 0}">${esc(line)}</tspan>`).join('');
         const highlighted = onPath.has(node);
+        const nameLines = wrap(node.name + (isCurrent ? ' ★' : ''), Math.max(1, Math.min(3, Math.floor((h - 8) / 16))));
         parts.push(`<g><rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="4" fill="${isCurrent ? 'var(--v2m-current)' : highlighted ? 'var(--v2m-path)' : 'var(--v2m-box)'}" stroke="var(--v2m-line)" stroke-width="${highlighted ? 2 : 1}"><title>${esc(nodePath(node).join('>'))}：去过 ${node.visits} 次</title></rect>`
-            + `<text x="${(x + 6).toFixed(1)}" y="${(y + 15).toFixed(1)}" class="v2m-name">${esc(fit(node.name + (isCurrent ? ' ★' : '')))}</text></g>`);
+            + `<text x="${(x + 6).toFixed(1)}" y="${(y + 15).toFixed(1)}" class="v2m-name">${spans(nameLines, x + 6, 15)}</text></g>`);
+        let textBottom = 15 + (nameLines.length - 1) * 15;
         if (isCurrent && present.length) {
-            parts.push(`<text x="${(x + 6).toFixed(1)}" y="${(y + 32).toFixed(1)}" class="v2m-people">${esc(fit(`在场：${present.slice(0, 8).join('、')}`))}<title>${esc(present.join('、'))}</title></text>`);
+            const peopleLines = wrap(`在场：${present.slice(0, 8).join('、')}`, 2);
+            parts.push(`<text x="${(x + 6).toFixed(1)}" y="${(y + textBottom + 17).toFixed(1)}" class="v2m-people">${spans(peopleLines, x + 6, 14)}<title>${esc(present.join('、'))}</title></text>`);
+            textBottom += 17 + (peopleLines.length - 1) * 14;
         }
         const children = [...node.children.values()].sort((a, b) => (onPath.has(b) - onPath.has(a)) || b.visits - a.visits).slice(0, 12);
         if (!children.length || depth >= 4 || w < 60 || h < 50) return;
-        const top = isCurrent && present.length ? 40 : 22;
+        const top = textBottom + 7;
         const cols = Math.ceil(Math.sqrt(children.length * (w / h)));
         const rows = Math.ceil(children.length / cols);
         const pad = 6;

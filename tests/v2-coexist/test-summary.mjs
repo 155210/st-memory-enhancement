@@ -235,3 +235,38 @@ USER.tableBaseSetting.v2_task_cleanup = true;
 assert.equal(TC.isDoneStatus('持续'), false);
 assert.equal(TC.isDoneStatus('待执行'), false);
 console.log('✓ 任务表自动清理已完成的');
+
+// 归档表不发给 AI，AI 改表后新的一层也要带上归档表（以前漏存，归档就丢了）
+{
+  DERIVED.any.chatSheetMap = {};
+  chat.length = 0; Object.keys(chatMetadata).forEach(k => delete chatMetadata[k]);
+  const a1 = pushFloor('有归档');
+  [
+    mkChat('角色特征表格', ['角色名', '性格'], [['林悠悠', '开朗']]),
+    mkChat('大总结', ['内容', '层级', '楼层范围', '涉及角色'], [['卷总结', '卷', '1-9', '林悠悠']]),
+    mkChat('总结归档', ['内容', '层级', '楼层范围', '涉及角色'], [['旧事一', '大', '1-3', '林悠悠'], ['旧事二', '大', '4-9', '林悠悠']]),
+  ].forEach(s => s.save(chat[a1], true));
+  const { parseTableEditTag: parseEdit } = await import(REPO + '/index.js');
+  chat.push({ is_user: true, mes: '嗯' });
+  const msg = { is_user: false, mes: '正文<tableEdit>\n<!--\nupdateRow(0, 0, {"1":"温柔"})\n-->\n</tableEdit>' };
+  chat.push(msg);
+  parseEdit(msg, -1, true);
+  assert.equal(dump(load(msg).by('角色特征表格'))[0][1], '温柔');
+  assert.equal(dump(load(msg).by('总结归档')).length, 2, 'AI 改表后归档表还在');
+
+  // 已经丢了的：中间一层快照里没有归档，最新一层归档是空的 → 找回
+  const { repairArchive, fillMissingSheets } = await import(REPO + '/core/sheetRepair.js');
+  const lostUid = load(msg).by('总结归档').uid;
+  const HK = (await import(REPO + '/core/v2keys.js')).V2.pieceHash;
+  const b1 = pushFloor('丢了');
+  chat[b1][HK] = Object.fromEntries(Object.entries(msg[HK]).filter(([uid]) => uid !== lostUid));
+  assert.equal(fillMissingSheets(chat[b1][HK], chat[b1])[lostUid].length, 3, '缺的表从更早的楼层补');
+  const b2 = pushFloor('存成空的');
+  chat[b2][HK] = { ...chat[b1][HK], [lostUid]: [msg[HK][lostUid][0]] };
+  const fixed = repairArchive('总结归档');
+  assert.equal(fixed.restored, 2);
+  assert.deepEqual(dump(load(chat[b2]).by('总结归档')).map(r => r[0]), ['旧事一', '旧事二']);
+  assert.equal(dump(load(chat[a1]).by('总结归档')).length, 2, '老楼层不变');
+  assert.equal(repairArchive('总结归档').restored, 0, '再点一次没有可补的');
+  console.log('✓ 改表时带上归档表；丢了的归档能找回');
+}

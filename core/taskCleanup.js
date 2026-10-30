@@ -1,4 +1,5 @@
 import { BASE, USER } from './manager.js';
+import { loadSheetsFilled } from './sheetRepair.js';
 import { Cell } from './table/cell.js';
 import { getHeaders, stripColumnMark } from './rowIdentity.js';
 
@@ -30,7 +31,7 @@ export function cleanFinishedTasks(piece, keep = Number(USER.tableBaseSetting.v2
     if (USER.tableBaseSetting.v2_task_cleanup === false || !piece) return 0;
     const source = BASE.getPieceHash(piece) ? piece : BASE.getLastSheetsPiece()?.piece;
     if (!source) return 0;
-    const sheets = BASE.hashSheetsToSheets(BASE.getPieceHash(source));
+    const sheets = loadSheetsFilled(source);
     let removed = 0;
     for (const sheet of sheets) {
         const col = findTaskColumn(sheet);

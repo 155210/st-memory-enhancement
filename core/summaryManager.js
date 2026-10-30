@@ -1,4 +1,5 @@
 import { BASE, DERIVED, EDITOR, USER } from './manager.js';
+import { loadSheetsFilled } from './sheetRepair.js';
 import { cleanChatText } from './chatText.js';
 import { V2 } from './v2keys.js';
 import { Cell } from './table/cell.js';
@@ -208,7 +209,7 @@ export async function runSummaryPipeline(piece, floor, { sourcePiece = piece, co
     const log = [];
     let source = sourcePiece;
     const load = () => {
-        const sheets = BASE.hashSheetsToSheets(BASE.getPieceHash(source));
+        const sheets = loadSheetsFilled(source);
         return {
             sheets,
             events: findSheet(sheets, config.eventTable),

@@ -9,6 +9,7 @@ import { attachGraphInteraction, buildGraph, layoutGraph, renderGraphSvg } from 
 import { applyTheme } from './core/themes.js';
 import { buildLocationTree } from './core/locationTree.js';
 import { cleanFinishedTasks } from './core/taskCleanup.js';
+import { completePieceHash, fillMissingSheets, repairArchive } from './core/sheetRepair.js';
 import { openRequestPanel } from './core/extraRequest.js';
 import { attachMapZoom, drawAiMap, mapMode, mapPanelHtml, maybeDrawOnNewPlace, presentNames } from './core/worldMap.js';
 import { applyConditionalBlocks, dueReminderText, lastInjection, recordInjection } from './core/promptExtras.js';
@@ -36,7 +37,7 @@ import { findActiveOriginal, importOriginalSettingsOnce, offerChatImport, import
 
 console.log("______________________记忆插件：开始加载______________________")
 
-const VERSION = '2.2.24-v2.24'
+const VERSION = '2.2.25-v2.25'
 // v2 的版本检查地址（v2 单独一个仓库，和原版的更新提示互不干扰）
 const V2_MANIFEST_URL = 'https://raw.githubusercontent.com/155210/st-memory-enhancement-v2/refs/heads/master/manifest.json'
 
@@ -241,7 +242,7 @@ export function getTablePrompt(eventData, isPureData = false) {
  * @returns {string} 表格相关提示词
  */
 export function getTablePromptByPiece(piece, isPureData = false) {
-    const hash_sheets = BASE.getPieceHash(piece)
+    const hash_sheets = fillMissingSheets(BASE.getPieceHash(piece), piece)
     const allSheets = BASE.hashSheetsToSheets(hash_sheets)
     // 归档表只用来召回，不整张发，也不占序号（改表时同样跳过它）
     const sheets = allSheets
@@ -467,6 +468,8 @@ export function parseTableEditTag(piece, mesIndex = -1, ignoreCheck = false) {
         executeAction(EditAction, sheets, { live })
     }
     sheets.forEach(sheet => sheet.save(piece, true))
+    // 只存了发给 AI 的表；归档表、停用的表从上一层带过来，不然这层起就丢了
+    completePieceHash(piece, V2.pieceHash)
     console.log("聊天模板：", BASE.sheetsData.context)
     console.log("获取到的表格数据", prePiece)
     console.log("测试总chat", USER.getContext().chat)
@@ -517,6 +520,7 @@ export function executeTableEditActions(matches, referencePiece) {
         return false;
     }
     sheets.forEach(sheet => sheet.save(currentPiece, true))
+    completePieceHash(currentPiece, V2.pieceHash)
 
     console.log("聊天模板：", BASE.sheetsData.context)
     console.log("测试总chat", USER.getContext().chat)
@@ -893,6 +897,14 @@ async function onMessageReceived(chat_id) {
             handleEditStrInMessage(chat)
             // 任务表里写着完成的行，程序删掉，只留最近几条
             if (cleanFinishedTasks(chat)) USER.saveChat()
+            // 以前改表时漏存了归档表：每个聊天自动找回一次（只补不删）
+            const meta = USER.getContext().chatMetadata
+            if (summaryConfig().enabled && meta && !meta[V2.archiveRepaired]) {
+                const fixed = repairArchive(summaryConfig().archiveTable)
+                meta[V2.archiveRepaired] = true
+                if (fixed.restored) EDITOR.success(`从第 ${fixed.from} 层找回了 ${fixed.restored} 条归档`)
+                USER.saveChat()
+            }
             // 事件满了、大总结多了：另发请求整理，不等它，整理完再刷新
             // 之后 AI 地图模式下到了新地点再画一张（排在总结后面，不同时发两个请求）
             runSummaryAfterFill(chat).then(log => { if (log.length) updateSheetsView() }).then(() => maybeDrawOnNewPlace())
@@ -1390,6 +1402,16 @@ jQuery(async () => {
         await updateSheetsView()
         EDITOR.success(result.message)
     })
+    $(document).on('click', '#table_v2_repair_archive_button', async function () {
+        const config = summaryConfig()
+        const fixed = repairArchive(config.archiveTable)
+        if (fixed.from === -1) return EDITOR.error(`所有楼层里都没找到有内容的「${config.archiveTable}」`)
+        if (!fixed.restored) return EDITOR.success(`「${config.archiveTable}」没有缺的（第 ${fixed.from} 层那份的内容最新一层都有）`)
+        USER.getContext().chatMetadata[V2.archiveRepaired] = true
+        await USER.saveChat()
+        await updateSheetsView()
+        EDITOR.success(`从第 ${fixed.from} 层找回了 ${fixed.restored} 条归档`)
+    })
     $(document).on('click', '#table_v2_request_panel_button', function () {
         openRequestPanel()
     })
@@ -1410,13 +1432,25 @@ jQuery(async () => {
         if (graph.nodes.length <= 1) return EDITOR.error('角色表里还没有角色')
         // 画布按屏幕大小来：手机竖屏就画成竖的，1 个单位约等于 1 像素，字不会被缩得太小
         const width = Math.max(320, Math.round(Math.min(window.innerWidth, 1000) - 48))
-        const height = Math.max(360, Math.round(window.innerHeight * 0.62))
-        const pos = layoutGraph(graph, width, height)
+        const height = Math.max(400, Math.round(window.innerHeight * 0.8))
+        const initial = layoutGraph(graph, width, height)
+        const copyPos = () => new Map([...initial].map(([k, v]) => [k, { ...v }]))
         const touch = window.matchMedia?.('(pointer: coarse)')?.matches
         const id = `v2_graph_${Date.now()}`
         const hint = (graph.nodes.length > 10 ? '点一个人只看他的关系和关系词，再点一次复原。' : '') + (touch ? '拖圆点调位置，单指拖空白处平移，双指捏合缩放。' : '拖圆点调位置，拖空白处平移，滚轮缩放。')
-        const html = `<div id="${id}"><p style="margin:0 0 4px;font-size:13px">灰色实线：对你的关系；彩色实线：角色关系表里角色之间的关系；虚线：在大总结里一起出现过，越深越常一起。${hint}</p>${renderGraphSvg(graph, pos, width, height)}</div>`
-        setTimeout(() => attachGraphInteraction(document.querySelector(`#${id} svg`), graph, pos), 50)
+        const html = `<div id="${id}"><p style="margin:0 0 4px;font-size:13px">灰色实线：对你的关系；彩色实线：角色关系表里角色之间的关系；虚线：在大总结里一起出现过，越深越常一起。${hint}</p><div class="menu_button menu_button_icon v2g-reset" style="display:inline-flex;margin:0 0 4px"><i class="fa-solid fa-arrows-rotate"></i><a>重置位置</a></div><div class="v2g-holder"></div></div>`
+        // 重置：按最初的布局重画，拖动、缩放、聚焦都清掉
+        const draw = () => {
+            const holder = document.querySelector(`#${id} .v2g-holder`)
+            if (!holder) return
+            const pos = copyPos()
+            holder.innerHTML = renderGraphSvg(graph, pos, width, height)
+            attachGraphInteraction(holder.querySelector('svg'), graph, pos)
+        }
+        setTimeout(() => {
+            draw()
+            document.querySelector(`#${id} .v2g-reset`)?.addEventListener('click', draw)
+        }, 50)
         await EDITOR.callGenericPopup(html, EDITOR.POPUP_TYPE.TEXT, '', { wide: true, large: true })
     })
 

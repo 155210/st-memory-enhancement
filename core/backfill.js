@@ -1,4 +1,5 @@
 import { BASE, USER } from './manager.js';
+import { loadSheetsFilled } from './sheetRepair.js';
 import { V2 } from './v2keys.js';
 import { isArchiveSheet, runSummaryPipeline, summaryHooks } from './summaryManager.js';
 import { replaceUserTag } from '../utils/stringUtil.js';
@@ -63,7 +64,7 @@ export function planBackfill({ from = 0, to, batch } = {}) {
 export async function runBackfill(plan, applyEdits, { onProgress = () => {}, shouldStop = () => false } = {}) {
     const chat = USER.getContext().chat || [];
     let source = plan.lastFilled >= 0 ? chat[plan.lastFilled] : BASE.initHashSheet();
-    const load = () => BASE.hashSheetsToSheets(BASE.getPieceHash(source));
+    const load = () => loadSheetsFilled(source);
     const result = { done: 0, edits: 0, summaries: [], stopped: false };
     for (const batch of plan.batches) {
         if (shouldStop()) { result.stopped = true; break; }
