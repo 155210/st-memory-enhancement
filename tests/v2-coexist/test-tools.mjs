@@ -153,3 +153,19 @@ globalThis.document = { body: { classList: { add: c => classes.add(c), remove: c
 applyTheme('night'); assert.deepEqual([...classes], ['v2-theme-night']);
 applyTheme('follow'); assert.deepEqual([...classes], []);
 console.log('✓ 配色切换');
+
+// 聊天文件大小拆分：正文、重 roll、思考、其他字段；表格快照不算进去
+{
+  const { chatPartsStats } = await import(REPO + '/scripts/editor/tableStatistics.js');
+  const stats = chatPartsStats([
+    { is_user: true, mes: 'hi', extra: {} },
+    { is_user: false, mes: 'abcd', swipes: ['abcd', 'efgh'], swipe_info: [], extra: { reasoning: '思考', foo: 'x'.repeat(2048) }, hash_sheets: 'y'.repeat(5000), status_bar: 'z'.repeat(4096) },
+  ], { sheets: [], note: 'n' });
+  const get = (label) => stats.find(s => s.label.startsWith(label))?.value;
+  assert.equal(get('其中正文'), '0.0 KB');
+  assert.match(get('其中重 roll'), /1 层有，共 1 个/);
+  assert.equal(stats.find(s => s.label === '其中其他字段 status_bar')?.value, '4.0 KB');
+  assert.equal(stats.find(s => s.label === '其中其他字段 extra.foo')?.value, '2.0 KB');
+  assert.ok(!stats.some(s => s.label.includes('hash_sheets')), '表格快照不重复算');
+  console.log('✓ 聊天文件大小拆分');
+}
