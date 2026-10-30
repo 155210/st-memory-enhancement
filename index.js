@@ -36,7 +36,7 @@ import { findActiveOriginal, importOriginalSettingsOnce, offerChatImport, import
 
 console.log("______________________记忆插件：开始加载______________________")
 
-const VERSION = '2.2.36-v2.36'
+const VERSION = '2.2.37-v2.37'
 // v2 的版本检查地址（v2 单独一个仓库，和原版的更新提示互不干扰）
 const V2_MANIFEST_URL = 'https://raw.githubusercontent.com/155210/st-memory-enhancement-v2/refs/heads/master/manifest.json'
 
@@ -1308,10 +1308,10 @@ jQuery(async () => {
         }
         const chat = USER.getContext().chat || []
         const draft = planBackfill({})
-        if (draft.start > draft.end) return EDITOR.success('后面的楼层都已经有表格了，不用回填')
+        if (draft.start > draft.end) return EDITOR.success(`第 ${draft.lastFilled} 层（最新一层）的表格里已经有内容，后面没有要回填的楼层。回填只补有内容的表格之后的楼层`)
         Object.assign(popupForm, { v2_backfill_from: String(draft.start), v2_backfill_to: String(chat.length - 1), v2_backfill_batch: String(USER.tableBaseSetting.v2_backfill_batch || 5) })
         const ok = await confirmPopup(`<div class="v2-popup-form" style="text-align:left;display:flex;flex-direction:column;gap:6px">
-            <p>从没有表格的楼层开始，每批几层正文发一次请求，补填表格。已经有表格的楼层一个都不改${draft.lastFilled >= 0 ? `（第 ${draft.lastFilled} 层之前已有表格，最早只能从第 ${draft.lastFilled + 1} 层开始）` : ''}。</p>
+            <p>从没有表格的楼层开始，每批几层正文发一次请求，补填表格。表格里已经有内容的楼层一个都不改${draft.lastFilled >= 0 ? `（第 ${draft.lastFilled} 层的表格已有内容，最早只能从第 ${draft.lastFilled + 1} 层开始）` : ''}；只有空表的楼层会被回填结果盖掉。</p>
             <label>从第几层 <input id="v2_backfill_from" class="text_pole" type="number" value="${draft.start}"></label>
             <label>到第几层 <input id="v2_backfill_to" class="text_pole" type="number" value="${chat.length - 1}"></label>
             <label>每批几条 AI 回复 <input id="v2_backfill_batch" class="text_pole" type="number" min="1" value="${USER.tableBaseSetting.v2_backfill_batch || 5}"></label>

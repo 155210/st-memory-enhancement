@@ -6,7 +6,8 @@ import { replaceUserTag } from '../utils/stringUtil.js';
 
 /**
  * @description O3 从第一层分批回填：新导入的聊天没有表格时，每批几层正文发一次请求补填表格
- * @description - 起点在最后一个已有 v2 表格的楼层之后，已有的快照一个都不改
+ * @description - 起点在最后一个表格里有内容的 v2 楼层之后，有内容的快照一个都不改；
+ * @description   v2 收到新消息时会存一份空表，空表不算「已经有表格」，回填时会被盖掉（里面本来就没东西）
  * @description - 每批结果存到这批最后一条 AI 消息上，下一批接着这个状态填；事件满了照常写大总结
  * @description - 随时可以停，停下时已填的批次保留
  */
@@ -30,11 +31,21 @@ const stripText = (mes) => String(mes || '')
  * @param {{ from?: number, to?: number, batch?: number }} options
  * @returns {{ start: number, end: number, lastFilled: number, batches: { floors: number[], target: number }[] }}
  */
+/** 这层的 v2 快照里有没有数据行（每张表的第一行是表头） */
+export function snapshotHasRows(piece) {
+    const hash = piece?.[V2.pieceHash];
+    return !!hash && Object.values(hash).some(rows => Array.isArray(rows) && rows.length > 1);
+}
+
 export function planBackfill({ from = 0, to, batch } = {}) {
     const chat = USER.getContext().chat || [];
     const size = Math.max(1, Number(batch) || Number(USER.tableBaseSetting.v2_backfill_batch) || 5);
     let lastFilled = -1;
-    chat.forEach((m, i) => { if (m && !m.is_user && m[V2.pieceHash]) lastFilled = i; });
+    let lastEmpty = -1;
+    chat.forEach((m, i) => {
+        if (!m || m.is_user || !m[V2.pieceHash]) return;
+        if (snapshotHasRows(m)) lastFilled = i; else lastEmpty = i;
+    });
     const start = Math.max(Number(from) || 0, lastFilled + 1);
     const end = Math.min(to ?? chat.length - 1, chat.length - 1);
     const batches = [];
@@ -51,7 +62,7 @@ export function planBackfill({ from = 0, to, batch } = {}) {
         }
     }
     if (aiCount) batches.push({ floors, target: floors.filter(i => !chat[i].is_user).pop() });
-    return { start, end, lastFilled, batches };
+    return { start, end, lastFilled, lastEmpty, batches };
 }
 
 /**
@@ -63,7 +74,9 @@ export function planBackfill({ from = 0, to, batch } = {}) {
  */
 export async function runBackfill(plan, applyEdits, { onProgress = () => {}, shouldStop = () => false } = {}) {
     const chat = USER.getContext().chat || [];
-    let source = plan.lastFilled >= 0 ? chat[plan.lastFilled] : BASE.initHashSheet();
+    // 没有有内容的楼层时，用空表那层的表格结构（本聊天的表），都没有才按模板新建
+    const base = plan.lastFilled >= 0 ? plan.lastFilled : (plan.lastEmpty ?? -1);
+    let source = base >= 0 ? chat[base] : BASE.initHashSheet();
     const load = () => loadSheetsFilled(source);
     const result = { done: 0, edits: 0, summaries: [], stopped: false };
     for (const batch of plan.batches) {
