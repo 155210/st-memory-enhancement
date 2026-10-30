@@ -1218,3 +1218,13 @@ div.v2cc-rowitem { min-height: var(--v2cc-tap); padding: 4px 8px; border-radius:
 .v2s-card textarea { margin: 0; box-sizing: border-box; }
 .v2s-card .v2p-panel, .v2s-card .v2-inline-output { margin: 2px 0; }
 .v2s-card input.text_pole, .v2s-card select.text_pole { box-sizing: border-box; max-width: 100%; }
+
+/* 角色资料卡：点头像的小菜单（柏宝绘画头像 / 图库挑 / 手机选） */
+.v2cc-ava-menu { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 8px; padding: 8px; border: 1px solid var(--v2cc-line); border-radius: 10px; background: var(--v2cc-soft); }
+.v2cc-ava-note { font-size: .85em; opacity: .8; overflow-wrap: anywhere; }
+.v2cc-ava-btns { display: flex; flex-wrap: wrap; gap: 6px; }
+.v2cc-ava-btns .v2cc-btn { flex: 1 1 auto; }
+.v2cc-ava-btns .v2cc-btn[disabled] { opacity: .5; }
+.v2cc-ava-pics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.v2cc .v2cc-ava-pic { padding: 0 !important; border: 1px solid var(--v2cc-line) !important; border-radius: 8px; overflow: hidden; aspect-ratio: 1; background: transparent; }
+.v2cc-ava-pic img { width: 100%; height: 100%; object-fit: cover; object-position: center 15%; display: block; }
