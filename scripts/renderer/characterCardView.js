@@ -34,7 +34,7 @@ const freshUi = () => ({
     privacy: false, collapsed: false, openKeys: new Set(), secOpen: {}, scroll: { card: 0, roster: 0 }, stripLeft: 0,
     curve: null, curvePt: -1, compare: null, graph: false, bookmark: '', orphans: false, editTags: false,
     changedFor: null, changed: new Set(), wi: new Map(), reveal: false,
-    avaMenu: '', avaPics: null, avaBusy: '',
+    avaMenu: '', avaPics: null, avaBusy: '', avaHist: null, batchSel: null,
 });
 let ui = freshUi();
 let model = null;
@@ -44,6 +44,8 @@ let inited = false;
 /** 本次渲染用到的提醒和条目，按钮按下标 / key 找回 */
 let lastAlerts = [];
 let itemMap = new Map();
+/** 批量画头像的进度（切聊天会停）：{ total, done, skipped, failed, current, phase, ctrl, chat } */
+let batch = null;
 
 const setting = () => USER.tableBaseSetting || {};
 const enabled = () => setting().isExtensionAble !== false && setting().v2_card_enabled !== false;
@@ -218,6 +220,20 @@ function cardTabHtml() {
 // ---------------------------------------------------------------- HTML：一个人的卡
 
 
+const samePath = (a, b) => !!a && !!b && safe(() => decodeURIComponent(a), a) === safe(() => decodeURIComponent(b), b);
+const histIndex = (srcs, full) => srcs.findIndex(x => samePath(x, full));
+
+/** 读本人分组的历史图（打开头像菜单、画完、删完都刷新一次） */
+async function loadAvaHist(p) {
+    if (!ACT.baibaiApi()) return;
+    const who = p.primary;
+    ui.avaHist = { for: who, srcs: ui.avaHist?.for === who ? ui.avaHist.srcs : null };
+    const groups = await ACT.listBaibaiImages([who, ...p.aliases], { onlyOwn: true }).catch(() => []);
+    if (ui.avaHist?.for !== who) return;
+    ui.avaHist.srcs = groups.flatMap(g => g.srcs);
+    if (ui.avaMenu === who) render(false);
+}
+
 /** 点头像弹出的小菜单：柏宝绘画一张 / 柏宝绘图库里挑 / 从手机选 / 清除 */
 function avatarMenuHtml(p) {
     const names = [p.primary, ...p.aliases];
@@ -231,9 +247,19 @@ function avatarMenuHtml(p) {
         : Array.isArray(ui.avaPics) ? (ui.avaPics.length
         ? ui.avaPics.map(g => `<div class="v2cc-ava-group">${esc(g.group)}${names.some(n => n === g.group) ? '（本人）' : ''}</div><div class="v2cc-ava-pics">${g.srcs.map(src => `<button class="v2cc-ava-pic" data-act="ava-use" data-src="${esc(src)}"><img src="${esc(src)}" alt="" loading="lazy"></button>`).join('')}</div>`).join('')
         : '<div class="v2cc-empty">柏宝绘图库里还没有图</div>') : '';
-    const big = CS.getAvatarFull(p.primary) || CS.getAvatar(p.primary);
+    const full = CS.getAvatarFull(p.primary);
+    const big = full || CS.getAvatar(p.primary);
+    // 历史：本人分组里的图（新的在前），大图左右按钮在里面切换
+    const hist = ui.avaHist?.for === p.primary && Array.isArray(ui.avaHist.srcs) ? ui.avaHist.srcs : [];
+    const at = histIndex(hist, full);
+    const nav = hist.length > 1 || (hist.length && at < 0)
+        ? `<button class="v2cc-ava-prev" data-act="ava-step" data-d="-1" aria-label="上一张"${busy ? ' disabled' : ''}>‹</button><button class="v2cc-ava-next" data-act="ava-step" data-d="1" aria-label="下一张"${busy ? ' disabled' : ''}>›</button>`
+        : '';
+    const histInfo = hist.length ? `<span class="v2cc-ava-count">${at >= 0 ? `${at + 1} / ${hist.length}` : `历史 ${hist.length} 张`}</span>` : '';
+    const canDelete = full && /柏宝绘_/.test(safe(() => decodeURIComponent(full), full));
     return `<div class="v2cc-ava-menu">
-${big ? `<img class="v2cc-ava-full" src="${esc(big)}" alt="${esc(p.primary)}">` : ''}
+${big ? `<div class="v2cc-ava-stage"><img class="v2cc-ava-full" src="${esc(big)}" alt="${esc(p.primary)}">${nav}${histInfo}</div>` : ''}
+${canDelete ? `<div class="v2cc-ava-btns"><button class="v2cc-btn is-danger" data-act="ava-delete"${busy ? ' disabled' : ''}>删掉这张（柏宝绘图库里也删）</button></div>` : ''}
 <div class="v2cc-ava-note">${esc(busy || note)}</div>
 <div class="v2cc-ava-btns">
 ${ch ? `<button class="v2cc-btn" data-act="ava-draw"${busy ? ' disabled' : ''}>柏宝绘画一张</button>` : ''}
@@ -510,8 +536,12 @@ function rosterListHtml() {
         const tags = safe(() => CS.getTags(p.primary), []);
         const meta = [a ? `上次 第 ${a.last} 楼` : '没记到出场', `${p.tokens || 0} token`, p.empty?.length ? `${p.empty.length} 列空` : ''].filter(Boolean);
         const relation = short(relationOf(p), 16);
-        return `<button class="v2cc-rrow" data-act="open-row" data-name="${esc(p.primary)}">
-${avatarHtml(p.primary, CS.getAvatar(p.primary), 'is-md')}
+        const picking = !!ui.batchSel;
+        const can = picking && batchable(p);
+        const sel = picking && ui.batchSel.has(p.primary);
+        const check = picking ? `<span class="v2cc-check${sel ? ' is-on' : ''}${can ? '' : ' is-off'}">${sel ? '✓' : ''}</span>` : '';
+        return `<button class="v2cc-rrow${sel ? ' is-picked' : ''}" data-act="${picking ? 'batch-pick' : 'open-row'}" data-name="${esc(p.primary)}"${picking && !can ? ' disabled title="柏宝绘里没建档"' : ''}>
+${check}${avatarHtml(p.primary, CS.getAvatar(p.primary), 'is-md')}
 <span class="v2cc-rmain"><span class="v2cc-rline"><b>${pins.has(p.primary) ? '★' : ''}${model.present.has(p.primary) ? '<i class="v2cc-on">●</i>' : ''}${esc(p.primary)}</b>${relation ? `<span class="v2cc-meta">${esc(relation)}</span>` : ''}</span>
 ${Number.isFinite(favor) && !ui.privacy ? `<span class="v2cc-rfavor"><span class="v2cc-k">好感 ${favor}</span>${meterHtml(favor, 100)}</span>` : ''}
 <span class="v2cc-rmeta">${meta.map(m => `<span>${esc(m)}</span>`).join('')}${tags.map(t => `<span class="v2cc-tag">#${esc(t)}</span>`).join('')}</span></span></button>`;
@@ -527,7 +557,60 @@ function orphansHtml() {
 }
 
 function rosterHtml() {
-    return `${toolsHtml(true)}${orphansHtml()}<div class="v2cc-roster">${rosterListHtml()}</div>`;
+    return `${toolsHtml(true)}${batchHtml()}${orphansHtml()}<div class="v2cc-roster">${rosterListHtml()}</div>`;
+}
+
+/** 名册顶上的「批量画头像」：选人 → 确认 → 一个一个排队画 */
+function batchHtml() {
+    if (!ACT.baibaiApi()) return '';
+    if (batch) {
+        const b = batch;
+        const line = `正在画 ${Math.min(b.done + 1, b.total)} / ${b.total}：${b.current || ''} ${b.phase || ''}`;
+        const extra = [b.skipped ? `跳过 ${b.skipped}` : '', b.failed.length ? `失败 ${b.failed.length}` : ''].filter(Boolean).join(' · ');
+        return `<div class="v2cc-batch is-running"><div class="v2cc-batch-line">${esc(line)}${extra ? `<small class="v2cc-muted"> ${esc(extra)}</small>` : ''}</div>
+${meterHtml(b.done, b.total)}<button class="v2cc-btn is-danger" data-act="batch-stop">停止</button></div>`;
+    }
+    if (!ui.batchSel) return `<div class="v2cc-batch"><button class="v2cc-btn" data-act="batch-on">批量画头像</button></div>`;
+    const n = ui.batchSel.size;
+    return `<div class="v2cc-batch is-picking"><div class="v2cc-batch-line">点名字勾选要画的人，会一个一个排队画</div>
+<div class="v2cc-ava-btns"><button class="v2cc-btn" data-act="batch-all" data-mode="noava">全选没头像的</button><button class="v2cc-btn" data-act="batch-all" data-mode="all">全选</button><button class="v2cc-btn" data-act="batch-all" data-mode="none">清空</button></div>
+<div class="v2cc-ava-btns"><button class="v2cc-btn is-on" data-act="batch-go"${n ? '' : ' disabled'}>开始画（${n} 人）</button><button class="v2cc-btn" data-act="batch-off">取消</button></div></div>`;
+}
+
+/** 名册里能批量画的人：柏宝绘角色库里有外貌词的 */
+const batchable = (p) => !!ACT.baibaiCharacter([p.primary, ...p.aliases]);
+
+async function runBatch(list) {
+    const chat = USER.getContext()?.chatMetadata;
+    batch = { total: list.length, done: 0, drawn: 0, skipped: 0, failed: [], current: '', phase: '', ctrl: new AbortController(), chat };
+    ui.batchSel = null;
+    render(false);
+    let stopWhy = '';
+    for (const p of list) {
+        const b = batch;
+        if (!b || b.ctrl.signal.aborted) break;
+        if (USER.getContext()?.chatMetadata !== chat) { stopWhy = '切换了聊天'; break; }
+        b.current = p.primary; b.phase = ''; render(false);
+        try {
+            const got = await ACT.drawAvatarWithBaibai([p.primary, ...p.aliases], text => { if (batch === b) { b.phase = text; render(false); } }, { quiet: true, signal: b.ctrl.signal });
+            if (got && USER.getContext()?.chatMetadata === chat) { CS.setAvatar(p.primary, got.avatar, got.full); b.drawn++; }
+            else if (!got) b.failed.push(p.primary);
+        } catch (error) {
+            const code = error?.code;
+            if (code === 'no_character') b.skipped++;
+            else if (code === 'aborted' || b.ctrl.signal.aborted) { stopWhy = '已停止'; break; }
+            else if (code === 'not_configured' || code === 'rate_limited' || code === 'no_api') { stopWhy = error?.message || code; break; }
+            else { b.failed.push(p.primary); console.warn('[v2 资料卡] 批量画头像失败', p.primary, error); }
+        }
+        b.done++;
+        render(false);
+    }
+    const b = batch;
+    batch = null;
+    render(false);
+    if (!b) return;
+    const msg = `画好 ${b.drawn} 张${b.skipped ? `，跳过 ${b.skipped} 个（柏宝绘没建档）` : ''}${b.failed.length ? `，失败：${b.failed.join('、')}` : ''}`;
+    if (stopWhy) EDITOR.warning?.(`批量画头像停了（${stopWhy}）：${msg}`); else EDITOR.success?.(`批量画头像完成：${msg}`);
 }
 
 // ---------------------------------------------------------------- 挂载和渲染
@@ -731,6 +814,29 @@ async function onAction(act, t) {
         case 'tab': ui.tab = t.dataset.tab; return render(false);
         case 'pick': if (select(t.dataset.name)) render(false); return;
         case 'open-row': if (select(t.dataset.name, { tab: 'card' })) render(false); return;
+        case 'batch-on': ui.batchSel = new Set(); return render(false);
+        case 'batch-off': ui.batchSel = null; return render(false);
+        case 'batch-pick': {
+            if (!ui.batchSel) return;
+            const name = t.dataset.name;
+            if (ui.batchSel.has(name)) ui.batchSel.delete(name); else ui.batchSel.add(name);
+            return render(false);
+        }
+        case 'batch-all': {
+            if (!ui.batchSel) return;
+            const mode = t.dataset.mode;
+            ui.batchSel = new Set(mode === 'none' ? [] : visibleList().filter(x => batchable(x) && (mode === 'all' || !CS.getAvatar(x.primary))).map(x => x.primary));
+            return render(false);
+        }
+        case 'batch-go': {
+            if (batch || !ui.batchSel?.size) return;
+            const list = visibleList().filter(x => ui.batchSel.has(x.primary));
+            if (!list.length) return;
+            const ok = await safeAsync(() => EDITOR.callGenericPopup(`让柏宝绘给 ${list.length} 个人各画一张头像？<br><br>一个一个排队画，会用掉 ${list.length} 次出图的额度（NAI 会扣点数）。画的时候可以随时停。`, EDITOR.POPUP_TYPE.CONFIRM, '', { okButton: '开始画', cancelButton: '取消' }), false);
+            if (!ok) return;
+            return runBatch(list);
+        }
+        case 'batch-stop': batch?.ctrl.abort(); return;
         case 'head': ui.collapsed = !ui.collapsed; return render(false);
         case 'prev': return step(-1);
         case 'next': return step(1);
@@ -760,7 +866,36 @@ async function onAction(act, t) {
             if (ui.collapsed) { ui.collapsed = false; }
             ui.avaMenu = ui.avaMenu === p.primary ? '' : p.primary;
             ui.avaPics = null;
+            render(false);
+            if (ui.avaMenu) loadAvaHist(p);
+            return;
+        case 'ava-step': {
+            const hist = ui.avaHist?.for === p.primary && Array.isArray(ui.avaHist.srcs) ? ui.avaHist.srcs : [];
+            if (!hist.length || ui.avaBusy) return;
+            const at = histIndex(hist, CS.getAvatarFull(p.primary));
+            const d = Number(t.dataset.d) || 1;
+            const next = hist[at < 0 ? (d > 0 ? 0 : hist.length - 1) : (at + d + hist.length) % hist.length];
+            const url = await safeAsync(() => ACT.urlToAvatar(next));
+            if (url) CS.setAvatar(p.primary, url, next); else EDITOR.warning?.('这张图读不出来');
             return render(false);
+        }
+        case 'ava-delete': {
+            const full = CS.getAvatarFull(p.primary);
+            if (!full || ui.avaBusy) return;
+            const ok = await safeAsync(() => EDITOR.callGenericPopup('删掉这张图？柏宝绘图库里的原图也会一起删掉，删了找不回来。', EDITOR.POPUP_TYPE.CONFIRM, '', { okButton: '删掉', cancelButton: '取消' }), false);
+            if (!ok) return;
+            if (!await ACT.deleteBaibaiImage(full)) return;
+            const hist = (ui.avaHist?.for === p.primary && Array.isArray(ui.avaHist.srcs) ? ui.avaHist.srcs : []);
+            const at = histIndex(hist, full);
+            const rest = hist.filter(x => !samePath(x, full));
+            if (ui.avaHist?.for === p.primary) ui.avaHist.srcs = rest;
+            const next = rest.length ? rest[Math.min(Math.max(at, 0), rest.length - 1)] : '';
+            const url = next ? await safeAsync(() => ACT.urlToAvatar(next)) : '';
+            CS.setAvatar(p.primary, url || '', url ? next : '');
+            ui.avaPics = null;
+            EDITOR.success?.(next ? '已删除，换成了下一张' : '已删除');
+            return render(false);
+        }
         case 'ava-file': {
             const url = await ACT.pickImageAsDataUrl(128);
             if (url) { CS.setAvatar(p.primary, url); ui.avaMenu = ''; render(false); }
@@ -775,18 +910,22 @@ async function onAction(act, t) {
             return render(false);
         case 'ava-use': {
             const url = await safeAsync(() => ACT.urlToAvatar(t.dataset.src));
-            if (url) { CS.setAvatar(p.primary, url, t.dataset.src); ui.avaPics = null; render(false); }
+            if (url) { CS.setAvatar(p.primary, url, t.dataset.src); ui.avaPics = null; render(false); loadAvaHist(p); }
             else EDITOR.warning?.('这张图读不出来');
             return;
         }
         case 'ava-draw': {
             if (ui.avaBusy) return;
             const who = p.primary;
+            const chat = USER.getContext()?.chatMetadata;
             ui.avaBusy = '画头像中…'; render(false);
             const got = await ACT.drawAvatarWithBaibai([who, ...p.aliases], text => { ui.avaBusy = text; render(false); });
             ui.avaBusy = '';
-            if (got) { CS.setAvatar(who, got.avatar, got.full); ui.avaPics = null; EDITOR.success?.(`${who} 的头像画好了，原图在柏宝绘图库`); }
-            return render(false);
+            // 画的时候切了聊天就不存，免得存进别的聊天
+            if (got && USER.getContext()?.chatMetadata === chat) { CS.setAvatar(who, got.avatar, got.full); ui.avaPics = null; EDITOR.success?.(`${who} 的头像画好了，原图在柏宝绘图库`); }
+            render(false);
+            if (got) loadAvaHist(p);
+            return;
         }
         case 'copy': {
             const shown = ui.privacy ? { ...p, sections: p.sections.filter(s => !s.private) } : p;
@@ -927,7 +1066,7 @@ export function initCharacterCard() {
     on('MESSAGE_EDITED', (id) => { if (!guard()) return; capture(id); schedule(); });
     on('MESSAGE_UPDATED', () => schedule());
     on('MESSAGE_DELETED', () => { if (guard()) CS.forgetFloor(chatLength()); schedule(); });
-    on('CHAT_CHANGED', () => { ui = freshUi(); model = null; removeRoot(); schedule(150); });
+    on('CHAT_CHANGED', () => { batch?.ctrl.abort(); ui = freshUi(); model = null; removeRoot(); schedule(150); });
     try { document.addEventListener('click', (e) => { try { onSummaryClick(e); } catch (_) { } }, true); } catch (_) { }
     schedule(200);
 }

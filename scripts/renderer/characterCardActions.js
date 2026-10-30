@@ -468,16 +468,23 @@ const baibaiFolder = name => `柏宝绘_${name}`;
  * 让柏宝绘按它记录的外貌画一张半身像，原图存进柏宝绘图库（按角色分组），返回裁好的小头像
  * @param {string[]} names 主名在前
  * @param {(text:string)=>void} [onProgress]
+ * @param {{quiet?:boolean, signal?:AbortSignal}} [opts]
  * @returns {Promise<{avatar:string, full:string}|null>} 小头像 dataURL 和原图路径
  */
-export async function drawAvatarWithBaibai(names, onProgress) {
+export async function drawAvatarWithBaibai(names, onProgress, opts = {}) {
+    // quiet：批量画时不弹提示，出错直接抛（带 code），由调用方决定停还是跳过
+    const fail = (code, message) => {
+        if (opts.quiet) { const e = new Error(message); e.code = code; throw e; }
+        EDITOR.warning(message);
+        return null;
+    };
     const api = baibaiApi();
-    if (!api) { EDITOR.warning('没检测到柏宝绘'); return null; }
+    if (!api) return fail('no_api', '没检测到柏宝绘');
     const ch = baibaiCharacter(names);
-    if (!ch) { EDITOR.warning(`柏宝绘的角色库里没有「${names[0]}」，先在柏宝绘里给这个人建档`); return null; }
+    if (!ch) return fail('no_character', `柏宝绘的角色库里没有「${names[0]}」，先在柏宝绘里给这个人建档`);
     let status = null;
     try { status = api.getBackendStatus(); } catch (_) { }
-    if (status && !status.configured) { EDITOR.warning(status.reason || '柏宝绘还没配好出图'); return null; }
+    if (status && !status.configured) return fail('not_configured', status.reason || '柏宝绘还没配好出图');
     const phases = { queued: '排队中…', generating: '画头像中…', 'queued-remote': '排队中…', retrying: '被限流，重试中…', saving: '保存中…' };
     try {
         const result = await api.generate({
@@ -486,14 +493,41 @@ export async function drawAvatarWithBaibai(names, onProgress) {
             size: 'portrait',
             save: true,
             character: names[0],
-        }, { onProgress: p => { try { onProgress?.(phases[p?.phase] || '画头像中…'); } catch (_) { } } });
+        }, { signal: opts.signal, onProgress: p => { try { onProgress?.(phases[p?.phase] || '画头像中…'); } catch (_) { } } });
         const avatar = await urlToAvatar(result.dataUrl || result.path);
         return avatar ? { avatar, full: result.path || '' } : null;
     } catch (error) {
+        if (opts.quiet) throw error;
         const why = { not_configured: '柏宝绘还没配好出图', rate_limited: '被限流了，等一会儿再试', aborted: '已取消' }[error?.code];
         EDITOR.error('柏宝绘画头像失败', why || error?.message || '', error);
         return null;
     }
+}
+
+/**
+ * 删掉柏宝绘图库里的一张图（连同它在 user/files 里的同名侧写 json）。
+ * 只删「柏宝绘_」分组里的图。ST 的删除接口不做 URL 解码，路径要先解开。
+ * @param {string} src 图片地址（/user/images/...，可以是编码过的）
+ * @returns {Promise<boolean>}
+ */
+export async function deleteBaibaiImage(src) {
+    let path = String(src || '');
+    try { path = decodeURIComponent(path); } catch (_) { }
+    path = path.replace(/^\/+/, '');
+    if (!path.startsWith('user/images/柏宝绘_') || path.includes('..')) { EDITOR.warning('只能删柏宝绘图库里的图'); return false; }
+    const post = (url, body) => fetch(url, { method: 'POST', headers: APP.getRequestHeaders(), body: JSON.stringify(body) });
+    try {
+        const res = await post('/api/images/delete', { path });
+        if (!res.ok && res.status !== 404) throw new Error(`${res.status}`);
+    } catch (error) {
+        EDITOR.error('删图失败', error?.message || '', error);
+        return false;
+    }
+    const file = path.split('/').pop() || '';
+    if (/^bbi_[a-zA-Z0-9_]+-[a-zA-Z0-9]+\.[a-z0-9]+$/i.test(file)) {
+        try { await post('/api/files/delete', { path: `/user/files/${file.replace(/\.[^./]*$/, '')}.json` }); } catch (_) { }
+    }
+    return true;
 }
 
 /**
@@ -503,7 +537,7 @@ export async function drawAvatarWithBaibai(names, onProgress) {
  * @param {string[]} names 主名在前
  * @returns {Promise<{group:string, srcs:string[]}[]>}
  */
-export async function listBaibaiImages(names) {
+export async function listBaibaiImages(names, { onlyOwn = false } = {}) {
     const post = async (url, body) => {
         const res = await fetch(url, { method: 'POST', headers: APP.getRequestHeaders(), body: JSON.stringify(body) });
         if (!res.ok) throw new Error(`${url} ${res.status}`);
@@ -517,7 +551,7 @@ export async function listBaibaiImages(names) {
     const prefix = '柏宝绘_';
     const own = new Set(names.map(n => prefix + n));
     const list = (Array.isArray(folders) ? folders : [])
-        .filter(f => typeof f === 'string' && f.startsWith(prefix) && f !== '柏宝绘_画师串')
+        .filter(f => typeof f === 'string' && f.startsWith(prefix) && f !== '柏宝绘_画师串' && (!onlyOwn || own.has(f)))
         .sort((x, y) => (own.has(y) ? 1 : 0) - (own.has(x) ? 1 : 0))
         .slice(0, 12);
     const groups = await Promise.all(list.map(async folder => {
