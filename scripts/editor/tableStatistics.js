@@ -165,11 +165,71 @@ function storageSizeStats(sheets) {
         { label: '其中 v2 表格历史数据', value: formatSize(JSON.stringify(context.chatMetadata?.[V2.chatSheets] || [])) },
         { label: '其中原版表格历史数据', value: formatSize(JSON.stringify(context.chatMetadata?.[ORIGINAL.chatSheets] || [])) },
     ];
+    stats.push(...chatPartsStats(chat, context.chatMetadata || {}));
     for (const sheet of sheets) {
         const rows = sheet.getRowCount() - 1;
         let chars = 0;
         for (let r = 1; r <= rows; r++) sheet.getCellsByRowIndex(r).slice(1).forEach(cell => { chars += String(cell?.data?.value ?? '').length; });
         stats.push({ label: `「${sheet.name}」`, value: `${rows} 行，${chars} 字` });
     }
+    return stats;
+}
+
+/** 字符串的 UTF-8 字节数（不用 Blob，几千层也快） */
+function byteLength(text) {
+    let bytes = 0;
+    for (let i = 0; i < text.length; i++) {
+        const code = text.charCodeAt(i);
+        if (code < 0x80) bytes += 1;
+        else if (code < 0x800) bytes += 2;
+        else if (code >= 0xd800 && code <= 0xdbff) { bytes += 4; i++; }
+        else bytes += 3;
+    }
+    return bytes;
+}
+
+function formatBytes(bytes) {
+    if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+    return `${(bytes / 1024).toFixed(1)} KB`;
+}
+
+/**
+ * 表格以外的聊天内容各占多少：正文、重 roll 版本、思考、其他字段（多半是别的插件存的），只统计不改
+ * @returns {{ label: string, value: string }[]}
+ */
+export function chatPartsStats(chat, chatMetadata = {}) {
+    const tableKeys = new Set([V2.pieceHash, ORIGINAL.pieceHash]);
+    const size = (value) => value === undefined ? 0 : byteLength(typeof value === 'string' ? value : JSON.stringify(value));
+    let text = 0, swipes = 0, reasoning = 0, swipeFloors = 0, swipeCount = 0;
+    const others = new Map();
+    const addOther = (key, bytes) => { if (bytes) others.set(key, (others.get(key) || 0) + bytes); };
+    for (const piece of chat) {
+        if (!piece || typeof piece !== 'object') continue;
+        for (const [key, value] of Object.entries(piece)) {
+            if (tableKeys.has(key)) continue;
+            if (key === 'mes') text += size(value);
+            else if (key === 'swipes' || key === 'swipe_info') {
+                // swipes 里也存着当前这一版正文，扣掉它才是额外多出来的
+                swipes += size(value) - (key === 'swipes' ? size(piece.mes) : 0);
+                if (key === 'swipes' && Array.isArray(value) && value.length > 1) { swipeFloors++; swipeCount += value.length - 1; }
+            } else if (key === 'extra' && value && typeof value === 'object') {
+                for (const [extraKey, extraValue] of Object.entries(value)) {
+                    if (extraKey === 'reasoning') reasoning += size(extraValue);
+                    else addOther(`extra.${extraKey}`, size(extraValue));
+                }
+            } else addOther(key, size(value));
+        }
+    }
+    const tableMetaKeys = new Set([V2.chatSheets, ORIGINAL.chatSheets]);
+    let meta = 0;
+    for (const [key, value] of Object.entries(chatMetadata)) if (!tableMetaKeys.has(key)) meta += size(value);
+    const stats = [
+        { label: '其中正文（当前显示的那一版）', value: formatBytes(text) },
+        { label: '其中重 roll 的其他版本', value: `${formatBytes(Math.max(0, swipes))}（${swipeFloors} 层有，共 ${swipeCount} 个）` },
+        { label: '其中思考内容', value: formatBytes(reasoning) },
+        { label: '其中聊天元数据（不含表格）', value: formatBytes(meta) },
+    ];
+    [...others.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6)
+        .forEach(([key, bytes]) => stats.push({ label: `其中其他字段 ${key}`, value: formatBytes(bytes) }));
     return stats;
 }
