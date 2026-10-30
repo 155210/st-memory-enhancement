@@ -121,7 +121,7 @@ console.log('✓ 多块、全角冒号、未闭合、字段映射');
 
 // ---------------------------------------------------------------- 默认状态
 const state0 = CS.cardState();
-assert.deepEqual(state0, { status: {}, history: {}, appear: {}, bookmarks: [], viewed: {}, pins: [], tags: {}, notes: {}, avatars: {}, version: 1 });
+assert.deepEqual(state0, { status: {}, history: {}, appear: {}, bookmarks: [], viewed: {}, pins: [], tags: {}, notes: {}, avatars: {}, avatarFull: {}, version: 1 });
 assert.equal(chatMetadata[KEY], state0, '存在 chatMetadata 里');
 console.log('✓ cardState 默认值');
 
@@ -281,6 +281,11 @@ CS.setAvatar('陈映竹', 'data:image/jpeg;base64,AAA');
 assert.equal(CS.getAvatar('陈映竹'), 'data:image/jpeg;base64,AAA');
 CS.setAvatar('苏晴', 'javascript:alert(1)');
 assert.equal(CS.getAvatar('苏晴'), '', '只收图片 dataURL');
+CS.setAvatar('陈映竹', 'data:image/jpeg;base64,BBB', '/user/images/%E6%9F%8F/a.png');
+assert.equal(CS.getAvatarFull('陈映竹'), '/user/images/%E6%9F%8F/a.png', '原图只存路径');
+CS.setAvatar('陈映竹', 'data:image/jpeg;base64,CCC', 'https://evil/x.png');
+assert.equal(CS.getAvatarFull('陈映竹'), '', '外站地址不收');
+CS.setAvatar('陈映竹', 'data:image/jpeg;base64,AAA');
 console.log('✓ 置顶、分组标签、备注、头像');
 
 // ---------------------------------------------------------------- 备份

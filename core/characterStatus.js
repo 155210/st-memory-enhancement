@@ -158,7 +158,7 @@ function historyKey(label) {
 
 // ---------------------------------------------------------------- 存储
 
-const DEFAULT_STATE = () => ({ status: {}, history: {}, appear: {}, bookmarks: [], viewed: {}, pins: [], tags: {}, notes: {}, avatars: {}, version: 1 });
+const DEFAULT_STATE = () => ({ status: {}, history: {}, appear: {}, bookmarks: [], viewed: {}, pins: [], tags: {}, notes: {}, avatars: {}, avatarFull: {}, version: 1 });
 
 /** 本聊天的资料卡数据（缺的键补默认值） */
 export function cardState() {
@@ -546,9 +546,20 @@ export function getAvatar(primary) {
     return cardState().avatars[primary] || '';
 }
 
-export function setAvatar(primary, dataUrl) {
+/** 头像的原图地址（柏宝绘图库里的路径），点头像时看大图用；没有就是空串 */
+export function getAvatarFull(primary) {
+    return cardState().avatarFull[primary] || '';
+}
+
+/**
+ * @param {string} primary
+ * @param {string} dataUrl 裁好的小头像
+ * @param {string} [full] 原图在 ST 里的路径（/user/images/...），只存路径不存图
+ */
+export function setAvatar(primary, dataUrl, full = '') {
     const state = cardState();
     if (dataUrl && /^data:image\//.test(dataUrl)) state.avatars[primary] = dataUrl; else delete state.avatars[primary];
+    if (state.avatars[primary] && typeof full === 'string' && full.startsWith('/user/images/')) state.avatarFull[primary] = full; else delete state.avatarFull[primary];
     saveSoon();
 }
 
@@ -614,7 +625,7 @@ export function importBackup(obj) {
     if (isObj(card.viewed)) for (const [p, v] of Object.entries(card.viewed)) if (!state.viewed[p] && isObj(v)) state.viewed[p] = v;
     if (Array.isArray(card.pins)) state.pins = [...new Set([...state.pins, ...card.pins.filter(x => typeof x === 'string')])];
     if (isObj(card.tags)) for (const [p, t] of Object.entries(card.tags)) if (Array.isArray(t)) state.tags[p] = [...new Set([...(state.tags[p] || []), ...t])];
-    for (const key of ['notes', 'avatars']) {
+    for (const key of ['notes', 'avatars', 'avatarFull']) {
         if (isObj(card[key])) for (const [p, v] of Object.entries(card[key])) if (!state[key][p] && typeof v === 'string' && v) state[key][p] = v;
     }
     saveSoon();

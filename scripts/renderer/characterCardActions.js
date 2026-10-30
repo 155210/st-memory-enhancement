@@ -2,7 +2,7 @@
  * @description 角色资料卡的动作：往输入框插字、查世界书、AI 精简长字段、存图、导入导出文件、复制、跳到原表 / 某一楼
  * @description 这里的东西只给用户看或只改输入框；唯一会发请求的是手动点的「精简」，唯一会改表的也是它（确认后才写）
  */
-import { BASE, EDITOR, USER } from '../../core/manager.js';
+import { APP, BASE, EDITOR, USER } from '../../core/manager.js';
 import { Cell } from '../../core/table/cell.js';
 import { askExtra } from '../../core/extraRequest.js';
 import { loadSheetsFilled, completePieceHash } from '../../core/sheetRepair.js';
@@ -468,7 +468,7 @@ const baibaiFolder = name => `柏宝绘_${name}`;
  * 让柏宝绘按它记录的外貌画一张半身像，原图存进柏宝绘图库（按角色分组），返回裁好的小头像
  * @param {string[]} names 主名在前
  * @param {(text:string)=>void} [onProgress]
- * @returns {Promise<string|null>} 头像 dataURL
+ * @returns {Promise<{avatar:string, full:string}|null>} 小头像 dataURL 和原图路径
  */
 export async function drawAvatarWithBaibai(names, onProgress) {
     const api = baibaiApi();
@@ -487,7 +487,8 @@ export async function drawAvatarWithBaibai(names, onProgress) {
             save: true,
             character: names[0],
         }, { onProgress: p => { try { onProgress?.(phases[p?.phase] || '画头像中…'); } catch (_) { } } });
-        return await urlToAvatar(result.dataUrl || result.path);
+        const avatar = await urlToAvatar(result.dataUrl || result.path);
+        return avatar ? { avatar, full: result.path || '' } : null;
     } catch (error) {
         const why = { not_configured: '柏宝绘还没配好出图', rate_limited: '被限流了，等一会儿再试', aborted: '已取消' }[error?.code];
         EDITOR.error('柏宝绘画头像失败', why || error?.message || '', error);
@@ -496,30 +497,43 @@ export async function drawAvatarWithBaibai(names, onProgress) {
 }
 
 /**
- * 柏宝绘图库里这个角色目录下的图（新的在前）。
+ * 柏宝绘图库里的图（新的在前）：这个角色自己的分组排最前，再列其他分组最近的图
+ * （柏宝绘在楼层里出的图按聊天的角色卡名分组，不按剧情人物）。
  * 先查目录列表再列文件：ST 的 /api/images/list 遇到不存在的目录会顺手建一个空目录。
- * @param {string} name
- * @returns {Promise<string[]>} 可直接当 <img src> 的路径
+ * @param {string[]} names 主名在前
+ * @returns {Promise<{group:string, srcs:string[]}[]>}
  */
-export async function listBaibaiImages(name) {
-    const folder = baibaiFolder(name);
+export async function listBaibaiImages(names) {
     const post = async (url, body) => {
-        const res = await fetch(url, { method: 'POST', headers: USER.getContext().getRequestHeaders(), body: JSON.stringify(body) });
-        if (!res.ok) throw new Error(`${res.status}`);
+        const res = await fetch(url, { method: 'POST', headers: APP.getRequestHeaders(), body: JSON.stringify(body) });
+        if (!res.ok) throw new Error(`${url} ${res.status}`);
         return res.json();
     };
-    try {
-        const folders = await post('/api/images/folders', {});
-        if (!Array.isArray(folders) || !folders.includes(folder)) return [];
-        const files = await post('/api/images/list', { folder, sortField: 'date', sortOrder: 'desc' });
-        return (Array.isArray(files) ? files : [])
-            .filter(f => typeof f === 'string' && /\.(png|jpe?g|webp|gif)$/i.test(f))
-            .slice(0, 24)
-            .map(f => `/user/images/${encodeURIComponent(folder)}/${encodeURIComponent(f)}`);
-    } catch (error) {
-        console.warn('[角色资料卡] 读柏宝绘图库失败', error);
-        return [];
+    let folders = [];
+    try { folders = await post('/api/images/folders', {}); } catch (error) {
+        console.warn('[角色资料卡] 读柏宝绘图库目录失败', error);
+        throw new Error('读不到图库目录');
     }
+    const prefix = '柏宝绘_';
+    const own = new Set(names.map(n => prefix + n));
+    const list = (Array.isArray(folders) ? folders : [])
+        .filter(f => typeof f === 'string' && f.startsWith(prefix) && f !== '柏宝绘_画师串')
+        .sort((x, y) => (own.has(y) ? 1 : 0) - (own.has(x) ? 1 : 0))
+        .slice(0, 12);
+    const groups = await Promise.all(list.map(async folder => {
+        try {
+            const files = await post('/api/images/list', { folder, sortField: 'date', sortOrder: 'desc' });
+            const srcs = (Array.isArray(files) ? files : [])
+                .filter(f => typeof f === 'string' && /\.(png|jpe?g|webp|gif)$/i.test(f))
+                .slice(0, own.has(folder) ? 24 : 12)
+                .map(f => `/user/images/${encodeURIComponent(folder)}/${encodeURIComponent(f)}`);
+            return { group: folder.slice(prefix.length) || '未命名', srcs };
+        } catch (error) {
+            console.warn('[角色资料卡] 读柏宝绘图库失败', folder, error);
+            return { group: folder.slice(prefix.length), srcs: [] };
+        }
+    }));
+    return groups.filter(g => g.srcs.length);
 }
 
 /**
