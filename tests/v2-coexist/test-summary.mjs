@@ -213,3 +213,25 @@ assert.equal(SM.looksLikeStory('他推开门，'.repeat(200)), true, '没标签�
 assert.equal(SM.looksLikeStory(`<summary>${'事'.repeat(900)}</summary>`), false);
 assert.equal(SM.looksLikeStory('短短一句总结'), false);
 console.log('✓ 续写剧情的回复不写进表');
+
+// 任务表：写着完成的行由程序删掉，只留最近 keep 条；老楼层不变
+const TC = await import(REPO + '/core/taskCleanup.js');
+DERIVED.any.chatSheetMap = {};
+chat.length = 0;
+const k1 = pushFloor('任务');
+mkChat('任务、命令或者约定表格', ['角色', '任务', '地点', '持续时间'], [
+  ['甲', '任务1', '', '完成'], ['乙', '任务2', '', '持续'], ['丙', '任务3', '', '已完成'],
+  ['丁', '任务4', '', '待执行'], ['戊', '任务5', '', '取消'], ['己', '任务6', '', '完成后去吃饭'],
+]).save(chat[k1], true);
+const k2 = pushFloor('下一轮');
+assert.equal(TC.cleanFinishedTasks(chat[k2], 1), 2, '完成、已完成删掉，最近 1 条（取消）留着；「完成后去吃饭」不算');
+const tasks = dump(load(chat[k2]).by('任务、命令或者约定表格')).map(r => r[1]);
+assert.deepEqual(tasks, ['任务2', '任务4', '任务5', '任务6']);
+assert.equal(TC.isDoneStatus('已完成：交了报告'), true);
+assert.equal(dump(load(chat[k1]).by('任务、命令或者约定表格')).length, 6, '老楼层不变');
+USER.tableBaseSetting.v2_task_cleanup = false;
+assert.equal(TC.cleanFinishedTasks(chat[k2], 0), 0, '关掉就不删');
+USER.tableBaseSetting.v2_task_cleanup = true;
+assert.equal(TC.isDoneStatus('持续'), false);
+assert.equal(TC.isDoneStatus('待执行'), false);
+console.log('✓ 任务表自动清理已完成的');

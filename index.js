@@ -8,6 +8,7 @@ import { downloadDiagnostics, installErrorCapture } from './core/diagnostics.js'
 import { attachGraphInteraction, buildGraph, layoutGraph, renderGraphSvg } from './core/relationGraph.js';
 import { applyTheme } from './core/themes.js';
 import { buildLocationTree } from './core/locationTree.js';
+import { cleanFinishedTasks } from './core/taskCleanup.js';
 import { openRequestPanel } from './core/extraRequest.js';
 import { attachMapZoom, drawAiMap, mapMode, mapPanelHtml, maybeDrawOnNewPlace, presentNames } from './core/worldMap.js';
 import { applyConditionalBlocks, dueReminderText, lastInjection, recordInjection } from './core/promptExtras.js';
@@ -35,7 +36,7 @@ import { findActiveOriginal, importOriginalSettingsOnce, offerChatImport, import
 
 console.log("______________________记忆插件：开始加载______________________")
 
-const VERSION = '2.2.22-v2.22'
+const VERSION = '2.2.23-v2.23'
 // v2 的版本检查地址（v2 单独一个仓库，和原版的更新提示互不干扰）
 const V2_MANIFEST_URL = 'https://raw.githubusercontent.com/155210/st-memory-enhancement-v2/refs/heads/master/manifest.json'
 
@@ -890,6 +891,8 @@ async function onMessageReceived(chat_id) {
         console.log("收到消息", chat_id)
         try {
             handleEditStrInMessage(chat)
+            // 任务表里写着完成的行，程序删掉，只留最近几条
+            if (cleanFinishedTasks(chat)) USER.saveChat()
             // 事件满了、大总结多了：另发请求整理，不等它，整理完再刷新
             // 之后 AI 地图模式下到了新地点再画一张（排在总结后面，不同时发两个请求）
             runSummaryAfterFill(chat).then(log => { if (log.length) updateSheetsView() }).then(() => maybeDrawOnNewPlace())

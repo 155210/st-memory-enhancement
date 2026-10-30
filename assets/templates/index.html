@@ -188,6 +188,13 @@
                                 <small class="toggle-description justifyLeft">(填标签名，逗号分隔。正文里这些标签中间的内容，判断在场、找回旧事、触发发送时都不看；&lt;tableEdit&gt; 和思考本来就不看)</small>
                             </div>
                             <div class="checkbox_label range-block justifyLeft">
+                                <input type="checkbox" id="table_v2_task_cleanup_switch"><span>自动清理已完成任务（v2）</span>
+                                <small class="toggle-description justifyLeft">(名字带「任务」的表里，「状态」或「持续时间」写着完成、取消、结束的行，每轮由程序删掉，只留最近几条；老楼层不变)</small>
+                            </div>
+                            <div style="padding-left: 5px;">
+                                <label>保留最近已完成 <input type="number" id="table_v2_task_keep_done" class="text_pole" min="0" style="width: 60px"> 条</label>
+                            </div>
+                            <div class="checkbox_label range-block justifyLeft">
                                 <input type="checkbox" id="table_v2_reminders_switch"><span>定时提醒（v2）</span>
                                 <small class="toggle-description justifyLeft">(每行写「间隔轮数|提醒内容」，例如「10|检查悬念簿里有没有该收的伏笔」，到点时附在表格提示词后面)</small>
                             </div>

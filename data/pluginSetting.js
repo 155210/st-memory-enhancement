@@ -154,6 +154,8 @@ export const defaultSettings = await switchLanguage('__defaultSettings__', {
     v2_tier_enabled: true,
     v2_tier_main_count: 10,
     v2_ignore_tags: '',
+    v2_task_cleanup: true,
+    v2_task_keep_done: 3,
     v2_tier_present_depth: 2,
     v2_tier_main_depth: 30,
     v2_tier_brief_length: 30,
