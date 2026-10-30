@@ -62,7 +62,9 @@ const safe = (fn, fallback) => { try { return fn(); } catch (e) { console.warn('
 
 /** 从表格建一次档案索引（只看表，不扫聊天） */
 function buildModel() {
-    const sheets = safe(() => loadSheetsFilled(BASE.getLastSheetsPiece()?.piece), []) || [];
+    const piece = BASE.getLastSheetsPiece()?.piece;
+    // 补全缺的表；补全出错时退回直接读这一层
+    const sheets = safe(() => loadSheetsFilled(piece), null) || safe(() => BASE.hashSheetsToSheets(BASE.getPieceHash(piece)), []) || [];
     const built = safe(() => CD.buildProfiles(sheets), null) || { list: [], index: new Map(), orphans: [] };
     const list = [...built.list];
     const index = new Map(built.index);
