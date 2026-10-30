@@ -488,6 +488,13 @@ function InitBinging() {
     $('#table_v2_tier_switch').change(function () {
         USER.tableBaseSetting.v2_tier_enabled = this.checked;
     });
+    $('#table_v2_task_cleanup_switch').change(function () {
+        USER.tableBaseSetting.v2_task_cleanup = this.checked;
+    });
+    $('#table_v2_task_keep_done').on('change', function () {
+        const value = Number($(this).val());
+        if (Number.isInteger(value) && value >= 0) USER.tableBaseSetting.v2_task_keep_done = value;
+    });
     $('#table_v2_ignore_tags').on('change', function () {
         USER.tableBaseSetting.v2_ignore_tags = String($(this).val() || '').trim();
     });
@@ -797,6 +804,8 @@ export function renderSetting() {
     updateSwitch('#table_v2_tier_switch', USER.tableBaseSetting.v2_tier_enabled !== false);
     $('#table_v2_tier_main_count').val(USER.tableBaseSetting.v2_tier_main_count ?? 10);
     $('#table_v2_ignore_tags').val(USER.tableBaseSetting.v2_ignore_tags || '');
+    updateSwitch('#table_v2_task_cleanup_switch', USER.tableBaseSetting.v2_task_cleanup !== false);
+    $('#table_v2_task_keep_done').val(USER.tableBaseSetting.v2_task_keep_done ?? 3);
     updateSwitch('#table_v2_reminders_switch', USER.tableBaseSetting.v2_reminders_enabled !== false);
     $('#table_v2_reminders').val(USER.tableBaseSetting.v2_reminders || '');
     loadCharacterCardSettings();
