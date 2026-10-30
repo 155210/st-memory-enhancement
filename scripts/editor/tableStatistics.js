@@ -209,8 +209,10 @@ export function chatPartsStats(chat, chatMetadata = {}) {
             if (tableKeys.has(key)) continue;
             if (key === 'mes') text += size(value);
             else if (key === 'swipes' || key === 'swipe_info') {
-                // swipes 里也存着当前这一版正文，扣掉它才是额外多出来的
-                swipes += size(value) - (key === 'swipes' ? size(piece.mes) : 0);
+                // swipes 里也存着当前这一版正文：这份算进正文（酒馆必须存，删不得），剩下的才是重 roll 多出来的
+                const copy = key === 'swipes' ? size(piece.mes) : 0;
+                text += copy;
+                swipes += size(value) - copy;
                 if (key === 'swipes' && Array.isArray(value) && value.length > 1) { swipeFloors++; swipeCount += value.length - 1; }
             } else if (key === 'extra' && value && typeof value === 'object') {
                 for (const [extraKey, extraValue] of Object.entries(value)) {
@@ -224,7 +226,7 @@ export function chatPartsStats(chat, chatMetadata = {}) {
     let meta = 0;
     for (const [key, value] of Object.entries(chatMetadata)) if (!tableMetaKeys.has(key)) meta += size(value);
     const stats = [
-        { label: '其中正文（当前显示的那一版）', value: formatBytes(text) },
+        { label: '其中正文（含酒馆在 swipes 里存的那一份）', value: formatBytes(text) },
         { label: '其中重 roll 的其他版本', value: `${formatBytes(Math.max(0, swipes))}（${swipeFloors} 层有，共 ${swipeCount} 个）` },
         { label: '其中思考内容', value: formatBytes(reasoning) },
         { label: '其中聊天元数据（不含表格）', value: formatBytes(meta) },

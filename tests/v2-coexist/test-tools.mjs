@@ -175,6 +175,7 @@ console.log('✓ 配色切换');
   ], { sheets: [], note: 'n' });
   const get = (label) => stats.find(s => s.label.startsWith(label))?.value;
   assert.equal(get('其中正文'), '0.0 KB');
+  assert.match(stats[0].label, /含酒馆在 swipes 里存的那一份/);
   assert.match(get('其中重 roll'), /1 层有，共 1 个/);
   assert.equal(stats.find(s => s.label === '其中其他字段 status_bar')?.value, '4.0 KB');
   assert.equal(stats.find(s => s.label === '其中其他字段 extra.foo')?.value, '2.0 KB');
