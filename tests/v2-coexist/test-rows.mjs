@@ -99,3 +99,25 @@ assert.deepEqual(report, [{ sheet: '角色与<user>社交表格', name: '林雪'
 assert.deepEqual(dump(legacy), [['林雪|小雪', '恋人', '入学；被救'], ['苏晴', '医生', '']]);
 console.log('✓ 迁移：重复行合并到最早一行，后面的删掉');
 console.log('全部通过');
+
+// # 列：AI 把整格旧内容连同新内容写回来时只追加新条目；已经重复的能清掉
+{
+  const a = '知道黄是同班同学/知道黄帮她修过书包拉链并借过她笔记/知道黄管着她的零食储备';
+  const b = a + '/知道买的饮料会被黄偷偷换成难喝的养生茶/知道陈嘉慧也被黄指使跑腿';
+  assert.equal(rows.resolveCellWrite('#对<user>的了解', a, b), a + '；知道买的饮料会被黄偷偷换成难喝的养生茶/知道陈嘉慧也被黄指使跑腿');
+  assert.equal(rows.resolveCellWrite('#对<user>的了解', a, a), undefined, '整格原样写回不变');
+  assert.equal(rows.resolveCellWrite('#往事', '入学', '被救'), '入学；被救', '普通追加照旧');
+  const messy = `${a}；${b}；${b}/知道黄家有大房子`;
+  assert.equal(rows.dedupeAppendText(messy), a + '；知道买的饮料会被黄偷偷换成难喝的养生茶/知道陈嘉慧也被黄指使跑腿；知道黄家有大房子');
+  assert.equal(rows.dedupeAppendText('6/1被救；6/3被骂'), '6/1被救；6/3被骂', '日期里的斜杠不拆');
+  assert.equal(rows.resolveCellWrite('#往事', messy, '新事'), rows.dedupeAppendText(messy) + '；新事', '追加时顺手清掉旧的重复');
+  const s = BASE.createChatSheet(3, 1);
+  s.getCellsByRowIndex(0).forEach((c, i) => { if (i) c.data.value = ['角色名', '#了解'][i - 1]; });
+  s.findCellByPosition(0, 0).newAction('insertDownRow', {}, false);
+  s.getCellsByRowIndex(1).forEach((c, i) => { if (i) c.data.value = ['林', messy][i - 1]; });
+  assert.deepEqual(rows.dedupeAppendColumns([s], true), [{ sheet: s.name, cells: 1 }]);
+  assert.equal(s.findCellByPosition(1, 2).data.value, messy, '预览不改');
+  rows.dedupeAppendColumns([s]);
+  assert.equal(s.findCellByPosition(1, 2).data.value, rows.dedupeAppendText(messy));
+  console.log('✓ # 列去重复');
+}
