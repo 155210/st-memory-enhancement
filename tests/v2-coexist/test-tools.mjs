@@ -47,8 +47,20 @@ const empty = [
   mkChat('角色特征表格', ['角色名', '性格']),
   mkChat('事件历史', ['事件', '日期']),
   mkChat('大总结', ['内容', '层级', '楼层范围', '涉及角色']),
+  mkChat('重要物品表格', ['拥有人', '物品'], [['林悠悠', '书包']]),
 ];
 empty.forEach(s => s.save(chat[0], true));
+// 只有空表的楼层不算已经填过：第 0 层有一行，第 4 层是 v2 收到消息时存的空表
+{
+  const blank = BASE.hashSheetsToSheets(BASE.getPieceHash(chat[0]));
+  const piece = {};
+  blank.forEach(s => s.save(piece, true));
+  const emptied = JSON.parse(JSON.stringify(piece[V2.pieceHash]));
+  Object.keys(emptied).forEach(uid => { emptied[uid] = emptied[uid].slice(0, 1); });
+  chat[4][V2.pieceHash] = emptied;
+}
+assert.equal(planBackfill({ batch: 3 }).lastFilled, 0, '空表那层不挡住回填');
+assert.equal(planBackfill({ batch: 3 }).lastEmpty, 4);
 Object.assign(USER.tableBaseSetting, { v2_summary_enabled: true, v2_summary_event_threshold: 100, message_template: '规则：\n{{tableData}}' });
 
 const plan = planBackfill({ batch: 3 });
@@ -110,7 +122,7 @@ const diag = buildDiagnostics('test');
 assert.equal(diag.errors.length, 1, '只装一次');
 assert.equal(diag.errors[0].message, '测试报错');
 assert.equal(JSON.stringify(diag).includes('sk-secret'), false, '不导出密钥');
-assert.equal(diag.tables.sheets.length, 3);
+assert.equal(diag.tables.sheets.length, 4);
 assert.ok(diag.lastExtraRequest === null || typeof diag.lastExtraRequest === 'object');
 console.log('✓ 诊断导出：报错记录、表格概况、不含密钥');
 
