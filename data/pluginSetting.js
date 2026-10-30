@@ -294,7 +294,7 @@ export const defaultSettings = await switchLanguage('__defaultSettings__', {
     custom_temperature: 1.0,
     // 修复 #162/#193：自定义 API 的输出 token 上限。旧代码从未使用该值，一律按 63000 发送，
     // 在输出窗口较小的模型上会直接报 API 错误。默认为 4096（足够大多数表格编辑指令输出）。
-    custom_max_tokens: 4096,
+    custom_max_tokens: 100000,
     // 重整理自定义top_p
     custom_top_p: 1,
     // 重整理忽略删除

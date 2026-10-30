@@ -218,7 +218,7 @@ async function viaCustomApi(messages, onText) {
         system_prompt: messages[0]?.content || '',
         signal: current?.abort?.signal,
         temperature: USER.tableBaseSetting.custom_temperature,
-        max_tokens: Number(USER.tableBaseSetting.custom_max_tokens) || 4096,
+        max_tokens: Number(USER.tableBaseSetting.custom_max_tokens) || 100000,
     });
     let text = '';
     return await service.callLLM(messages, (chunk) => { text += chunk; onText(text); });

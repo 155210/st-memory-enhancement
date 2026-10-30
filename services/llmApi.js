@@ -16,7 +16,7 @@ export class LLMApiService {
             model_name: config.model_name || "gpt-3.5-turbo",
             system_prompt: config.system_prompt || "You are a helpful assistant.",
             temperature: config.temperature || 1.0,
-            max_tokens: config.max_tokens || 63000, // 将默认值从 20000 修改为 63000
+            max_tokens: config.max_tokens || 100000,
             stream: config.stream || false,
             signal: config.signal || undefined,   // AbortSignal：外面要停时中断请求
         };
