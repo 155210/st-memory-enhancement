@@ -37,7 +37,7 @@ import { findActiveOriginal, importOriginalSettingsOnce, offerChatImport, import
 
 console.log("______________________记忆插件：开始加载______________________")
 
-const VERSION = '2.2.26-v2.26'
+const VERSION = '2.2.27-v2.27'
 // v2 的版本检查地址（v2 单独一个仓库，和原版的更新提示互不干扰）
 const V2_MANIFEST_URL = 'https://raw.githubusercontent.com/155210/st-memory-enhancement-v2/refs/heads/master/manifest.json'
 
@@ -1432,7 +1432,7 @@ jQuery(async () => {
         if (graph.nodes.length <= 1) return EDITOR.error('角色表里还没有角色')
         // 画布按屏幕大小来：手机竖屏就画成竖的，1 个单位约等于 1 像素，字不会被缩得太小
         const width = Math.max(320, Math.round(Math.min(window.innerWidth, 1000) - 48))
-        const height = Math.max(400, Math.round(window.innerHeight * 0.8))
+        const height = Math.max(400, Math.round(window.innerHeight * 0.68))
         const initial = layoutGraph(graph, width, height)
         const copyPos = () => new Map([...initial].map(([k, v]) => [k, { ...v }]))
         const touch = window.matchMedia?.('(pointer: coarse)')?.matches

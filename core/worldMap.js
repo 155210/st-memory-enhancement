@@ -53,7 +53,7 @@ export function renderBoxMap(tree, present = [], width = 800, height = 560) {
         };
         const spans = (lines, x0, lineHeight) => lines.map((line, i) => `<tspan x="${x0.toFixed(1)}" dy="${i ? lineHeight : 0}">${esc(line)}</tspan>`).join('');
         const highlighted = onPath.has(node);
-        const nameLines = wrap(node.name + (isCurrent ? ' ★' : ''), Math.max(1, Math.min(3, Math.floor((h - 8) / 16))));
+        const nameLines = wrap(node.name + (isCurrent ? ' ★' : ''), Math.max(1, Math.min(6, Math.floor((h - 8) / 16))));
         parts.push(`<g><rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="4" fill="${isCurrent ? 'var(--v2m-current)' : highlighted ? 'var(--v2m-path)' : 'var(--v2m-box)'}" stroke="var(--v2m-line)" stroke-width="${highlighted ? 2 : 1}"><title>${esc(nodePath(node).join('>'))}：去过 ${node.visits} 次</title></rect>`
             + `<text x="${(x + 6).toFixed(1)}" y="${(y + 15).toFixed(1)}" class="v2m-name">${spans(nameLines, x + 6, 15)}</text></g>`);
         let textBottom = 15 + (nameLines.length - 1) * 15;
