@@ -1,5 +1,5 @@
 import { V2 } from './core/v2keys.js';
-import { findRowByName, isNameKeyedSheet, mergeDuplicateRows, mergeNameCells, writeRowValues } from './core/rowIdentity.js';
+import { dedupeAppendColumns, findRowByName, isNameKeyedSheet, mergeDuplicateRows, mergeNameCells, writeRowValues } from './core/rowIdentity.js';
 import { syncChatSheetsWithTemplates } from './core/templateSync.js';
 import { buildTieredRows, computeTiers, tierConfig } from './core/sendTiers.js';
 import { planBackfill, runBackfill } from './core/backfill.js';
@@ -36,7 +36,7 @@ import { findActiveOriginal, importOriginalSettingsOnce, offerChatImport, import
 
 console.log("______________________记忆插件：开始加载______________________")
 
-const VERSION = '2.2.34-v2.34'
+const VERSION = '2.2.35-v2.35'
 // v2 的版本检查地址（v2 单独一个仓库，和原版的更新提示互不干扰）
 const V2_MANIFEST_URL = 'https://raw.githubusercontent.com/155210/st-memory-enhancement-v2/refs/heads/master/manifest.json'
 
@@ -1229,15 +1229,20 @@ jQuery(async () => {
         if (!currentPiece) return EDITOR.error('没有可以保存表格的 AI 消息，请先聊一轮')
         const sheets = BASE.hashSheetsToSheets(BASE.getPieceHash(tablePiece)).filter(sheet => sheet.enable)
         const preview = mergeDuplicateRows(sheets, true)
-        if (!preview.length) return EDITOR.success('角色类表里没有同名的重复行')
-        const list = preview.map(x => `「${x.sheet}」${x.name}：${x.merged + 1} 行合成 1 行`).join('<br>')
-        const ok = await EDITOR.callGenericPopup(`找到这些重复的角色：<br><br>${list}<br><br>合并时保留最早的一行，后面行里不为空的内容并进去（# 列追加、名字列合并外号），然后删掉后面的行。<br>结果存到最新一层，之前楼层的表格不变，可以回退。`, EDITOR.POPUP_TYPE.CONFIRM, '合并重复角色', { okButton: '合并', cancelButton: '取消' })
+        const dupCells = dedupeAppendColumns(sheets, true)
+        if (!preview.length && !dupCells.length) return EDITOR.success('角色类表里没有同名的重复行，# 列也没有重复的内容')
+        const list = [
+            ...preview.map(x => `「${x.sheet}」${x.name}：${x.merged + 1} 行合成 1 行`),
+            ...dupCells.map(x => `「${x.sheet}」# 列有 ${x.cells} 格写重复了，去掉重复的条目`),
+        ].join('<br>')
+        const ok = await EDITOR.callGenericPopup(`找到这些重复：<br><br>${list}<br><br>合并时保留最早的一行，后面行里不为空的内容并进去（# 列追加、名字列合并外号），然后删掉后面的行；# 列里同一句话只留第一次出现的。<br>结果存到最新一层，之前楼层的表格不变，可以回退。`, EDITOR.POPUP_TYPE.CONFIRM, '合并重复角色', { okButton: '合并', cancelButton: '取消' })
         if (!ok) return
         mergeDuplicateRows(sheets)
+        dedupeAppendColumns(sheets)
         sheets.forEach(sheet => sheet.save(currentPiece, true))
         USER.saveChat()
         await updateSheetsView()
-        EDITOR.success(`已合并 ${preview.reduce((n, x) => n + x.merged, 0)} 行重复角色`)
+        EDITOR.success(`已合并 ${preview.reduce((n, x) => n + x.merged, 0)} 行重复角色，清理 ${dupCells.reduce((n, x) => n + x.cells, 0)} 格重复内容`)
     })
     // 把全局模板的规则、表头和新表同步到当前聊天，不动已有数据（老档换新模板用）
     $(document).on('click', '#table_v2_sync_template_button', async function () {

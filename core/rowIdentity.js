@@ -28,6 +28,26 @@ export function stripColumnMark(header) {
     return clean(header).replace(/^[#!！]+/, '');
 }
 
+// # 列：段之间用「；」，段内条目用「/」
+const SEGMENT_SPLIT = /[；;]/;
+const ITEM_SPLIT = /(?<!\d)[/／]|[/／](?!\d)/;   // 6/1 这种日期不拆
+const itemKey = (item) => normalize(item).replace(/[。.,，、!！]+$/, '');
+const splitItems = (text) => clean(text).split(SEGMENT_SPLIT).flatMap(seg => seg.split(ITEM_SPLIT)).map(clean).filter(Boolean);
+
+/**
+ * 去掉 # 列里重复的条目：AI 常把整格旧内容连同新内容一起写回来，追加后同样的话出现好几遍
+ * 每段只留前面没出现过的条目，空了的段去掉；顺序不变
+ */
+export function dedupeAppendText(text) {
+    const seen = new Set();
+    return clean(text).split(SEGMENT_SPLIT).map(seg => seg.split(ITEM_SPLIT).map(clean).filter(item => {
+        const key = itemKey(item);
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    }).join('/')).filter(Boolean).join('；');
+}
+
 /** 列的写入方式：append 只追加、once 只填一次、normal 普通（空值不覆盖） */
 export function columnMode(header) {
     const h = clean(header);
@@ -128,10 +148,15 @@ export function resolveCellWrite(header, oldValue, newValue, isNameColumn = fals
     switch (columnMode(header)) {
         case 'once':
             return prev ? undefined : next;
-        case 'append':
-            if (!prev) return next;
-            if (prev.includes(next)) return undefined;
-            return `${prev}；${next}`;
+        case 'append': {
+            if (!prev) return dedupeAppendText(next);
+            // 只追加旧内容里没有的条目；顺手把旧内容里已经重复的去掉
+            const base = dedupeAppendText(prev);
+            const seen = new Set(splitItems(base).map(itemKey));
+            const fresh = dedupeAppendText(splitItems(next).filter(item => !seen.has(itemKey(item))).join('/'));
+            if (!fresh) return base === prev ? undefined : base;
+            return `${base}；${fresh}`;
+        }
         default:
             return next === prev ? undefined : next;
     }
@@ -156,6 +181,31 @@ export function writeRowValues(sheet, rowIndex, data, keyedByName) {
         changed++;
     });
     return changed;
+}
+
+/**
+ * 清理所有表 # 列里重复的条目
+ * @returns {{ sheet: string, cells: number }[]} 每张表清理了几格
+ */
+export function dedupeAppendColumns(sheets, dryRun = false) {
+    const report = [];
+    for (const sheet of sheets) {
+        const cols = getHeaders(sheet).map((h, i) => columnMode(h) === 'append' ? i : -1).filter(i => i >= 0);
+        if (!cols.length) continue;
+        let cells = 0;
+        for (let r = 1; r < sheet.getRowCount(); r++) {
+            for (const col of cols) {
+                const cell = sheet.findCellByPosition(r, col + 1);
+                const value = clean(cell?.data?.value);
+                const deduped = dedupeAppendText(value);
+                if (!value || deduped === value) continue;
+                cells++;
+                if (!dryRun) cell.newAction(Cell.CellAction.editCell, { value: deduped }, false);
+            }
+        }
+        if (cells) report.push({ sheet: sheet.name, cells });
+    }
+    return report;
 }
 
 /**
