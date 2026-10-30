@@ -185,4 +185,21 @@ assert.equal(await A.drawAvatarWithBaibai(['小竹']), null, '出错返回 null 
 delete globalThis.STBaiBaiImage;
 console.log('✓ 柏宝绘画头像：找人、没配好不画、提示词、存图库、出错不抛');
 
+// 批量用的 quiet 模式：出错抛带 code 的错；删图只删柏宝绘分组、路径先解码
+globalThis.STBaiBaiImage = { apiVersion: 1, getCharacters: () => ({ characters: [] }), getBackendStatus: () => ({ configured: true }), generate: async () => ({}) };
+await assert.rejects(A.drawAvatarWithBaibai(['无名'], null, { quiet: true }), e => e.code === 'no_character');
+delete globalThis.STBaiBaiImage;
+const posts = [];
+const oldFetch = globalThis.fetch;
+globalThis.fetch = async (url, init) => { posts.push([url, JSON.parse(init.body)]); return { ok: true, status: 200, json: async () => ({}) }; };
+assert.equal(await A.deleteBaibaiImage('/user/images/%E6%9F%8F%E5%AE%9D%E7%BB%98_%E5%B0%8F%E7%AB%B9/bbi_abc_1-x9.png'), true);
+assert.deepEqual(posts[0], ['/api/images/delete', { path: 'user/images/柏宝绘_小竹/bbi_abc_1-x9.png' }]);
+assert.deepEqual(posts[1], ['/api/files/delete', { path: '/user/files/bbi_abc_1-x9.json' }]);
+posts.length = 0;
+assert.equal(await A.deleteBaibaiImage('/user/images/别的/a.png'), false, '不是柏宝绘分组不删');
+assert.equal(await A.deleteBaibaiImage('/user/images/柏宝绘_x/../../secrets.json'), false, '不许跳目录');
+assert.equal(posts.length, 0);
+globalThis.fetch = oldFetch;
+console.log('✓ 批量出错带 code、删图路径解码、只删柏宝绘分组');
+
 console.log('全部通过');
