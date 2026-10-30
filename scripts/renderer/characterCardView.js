@@ -34,6 +34,7 @@ const freshUi = () => ({
     privacy: false, collapsed: false, openKeys: new Set(), secOpen: {}, scroll: { card: 0, roster: 0 }, stripLeft: 0,
     curve: null, curvePt: -1, compare: null, graph: false, bookmark: '', orphans: false, editTags: false,
     changedFor: null, changed: new Set(), wi: new Map(), reveal: false,
+    avaMenu: '', avaPics: null, avaBusy: '',
 });
 let ui = freshUi();
 let model = null;
@@ -57,6 +58,7 @@ const normLabel = (s) => {
 };
 const showLabel = (s) => clean(s).replace(/\{\{user\}\}|<user>/gi, userName() || '你');
 const safe = (fn, fallback) => { try { return fn(); } catch (e) { console.warn('[v2 资料卡]', e); return fallback; } };
+const safeAsync = async (fn, fallback = null) => { try { return await fn(); } catch (e) { console.warn('[v2 资料卡]', e); return fallback; } };
 
 // ---------------------------------------------------------------- 数据
 
@@ -215,6 +217,29 @@ function cardTabHtml() {
 
 // ---------------------------------------------------------------- HTML：一个人的卡
 
+
+/** 点头像弹出的小菜单：柏宝绘画一张 / 柏宝绘图库里挑 / 从手机选 / 清除 */
+function avatarMenuHtml(p) {
+    const names = [p.primary, ...p.aliases];
+    const api = ACT.baibaiApi();
+    const ch = api ? ACT.baibaiCharacter(names) : null;
+    const busy = ui.avaBusy;
+    const note = !api ? '没检测到柏宝绘，装上后可以让它按外貌画头像'
+        : !ch ? `柏宝绘的角色库里还没有「${p.primary}」`
+        : `按柏宝绘记录的外貌画：${short(ch.tag, 60)}`;
+    const pics = Array.isArray(ui.avaPics) ? (ui.avaPics.length
+        ? `<div class="v2cc-ava-pics">${ui.avaPics.map(src => `<button class="v2cc-ava-pic" data-act="ava-use" data-src="${esc(src)}"><img src="${esc(src)}" alt="" loading="lazy"></button>`).join('')}</div>`
+        : '<div class="v2cc-empty">柏宝绘图库里还没有这个人的图</div>') : '';
+    return `<div class="v2cc-ava-menu">
+<div class="v2cc-ava-note">${esc(busy || note)}</div>
+<div class="v2cc-ava-btns">
+${ch ? `<button class="v2cc-btn" data-act="ava-draw"${busy ? ' disabled' : ''}>柏宝绘画一张</button>` : ''}
+${api ? `<button class="v2cc-btn${Array.isArray(ui.avaPics) ? ' is-on' : ''}" data-act="ava-gallery"${busy ? ' disabled' : ''}>从柏宝绘图库选</button>` : ''}
+<button class="v2cc-btn" data-act="ava-file"${busy ? ' disabled' : ''}>从手机选</button>
+${CS.getAvatar(p.primary) ? `<button class="v2cc-btn" data-act="ava-clear"${busy ? ' disabled' : ''}>清除</button>` : ''}
+</div>${pics}</div>`;
+}
+
 function profileHtml(p) {
     const state = CS.cardState();
     const st = state.status?.[p.primary];
@@ -239,6 +264,7 @@ function profileHtml(p) {
 <button class="v2cc-pin${pinned ? ' is-on' : ''}" data-act="pin" aria-label="置顶">${pinned ? '★' : '☆'}</button>
 <button class="v2cc-nav" data-act="next" aria-label="下一个">›</button></div>`;
     if (ui.collapsed) return `<div class="v2cc-profile is-collapsed" data-primary="${esc(p.primary)}">${head}</div>`;
+    const avaMenu = ui.avaMenu === p.primary ? avatarMenuHtml(p) : '';
 
     const a = appearStats(p.primary);
     const stats = [`约 ${p.tokens || 0} token`];
@@ -246,7 +272,7 @@ function profileHtml(p) {
     else stats.push('还没记到出场');
     if (p.empty?.length) stats.push(`${p.empty.length} 列空`);
 
-    return `<div class="v2cc-profile${ui.privacy ? ' is-private' : ''}" data-primary="${esc(p.primary)}">${head}
+    return `<div class="v2cc-profile${ui.privacy ? ' is-private' : ''}" data-primary="${esc(p.primary)}">${head}${avaMenu}
 <div class="v2cc-stats">${stats.map(s => `<span>${esc(s)}</span>`).join('')}</div>
 ${tagsHtml(p)}
 <div class="v2cc-actions">
@@ -727,10 +753,37 @@ async function onAction(act, t) {
     if (!p) return;
     switch (act) {
         case 'pin': CS.togglePin(p.primary); return render(false);
-        case 'avatar': {
-            const url = await ACT.pickImageAsDataUrl(96);
-            if (url) { CS.setAvatar(p.primary, url); render(false); }
+        case 'avatar':
+            if (ui.collapsed) { ui.collapsed = false; }
+            ui.avaMenu = ui.avaMenu === p.primary ? '' : p.primary;
+            ui.avaPics = null;
+            return render(false);
+        case 'ava-file': {
+            const url = await ACT.pickImageAsDataUrl(128);
+            if (url) { CS.setAvatar(p.primary, url); ui.avaMenu = ''; render(false); }
             return;
+        }
+        case 'ava-clear': CS.setAvatar(p.primary, ''); ui.avaMenu = ''; return render(false);
+        case 'ava-gallery':
+            if (Array.isArray(ui.avaPics)) { ui.avaPics = null; return render(false); }
+            ui.avaBusy = '正在读柏宝绘图库…'; render(false);
+            ui.avaPics = await ACT.listBaibaiImages(p.primary);
+            ui.avaBusy = '';
+            return render(false);
+        case 'ava-use': {
+            const url = await safeAsync(() => ACT.urlToAvatar(t.dataset.src));
+            if (url) { CS.setAvatar(p.primary, url); ui.avaMenu = ''; ui.avaPics = null; render(false); }
+            else EDITOR.warning?.('这张图读不出来');
+            return;
+        }
+        case 'ava-draw': {
+            if (ui.avaBusy) return;
+            const who = p.primary;
+            ui.avaBusy = '画头像中…'; render(false);
+            const url = await ACT.drawAvatarWithBaibai([who, ...p.aliases], text => { ui.avaBusy = text; render(false); });
+            ui.avaBusy = '';
+            if (url) { CS.setAvatar(who, url); ui.avaPics = null; EDITOR.success?.(`${who} 的头像画好了，原图在柏宝绘图库`); }
+            return render(false);
         }
         case 'copy': {
             const shown = ui.privacy ? { ...p, sections: p.sections.filter(s => !s.private) } : p;

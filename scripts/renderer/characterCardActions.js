@@ -431,3 +431,116 @@ export function scrollToFloor(mesIndex) {
     setTimeout(() => target.classList.remove('v2cc-flash'), 1500);
     return true;
 }
+
+// ---------------------------------------------------------------- 柏宝绘头像
+
+/**
+ * 柏宝绘（ST-BaiBai-Image）开放给别的插件的接口；没装或版本不对时返回 null。
+ * 只调它公开的 globalThis.STBaiBaiImage，不碰它的内部代码。
+ */
+export function baibaiApi() {
+    const api = globalThis.STBaiBaiImage;
+    return api && api.apiVersion === 1 && typeof api.generate === 'function' ? api : null;
+}
+
+/**
+ * 在柏宝绘的角色库里按名字（主名优先，再试外号）找人
+ * @param {string[]} names
+ * @returns {{name:string, tag:string, nl:string}|null}
+ */
+export function baibaiCharacter(names) {
+    const api = baibaiApi();
+    if (!api) return null;
+    let list = [];
+    try { list = api.getCharacters()?.characters || []; } catch (_) { return null; }
+    const norm = s => String(s || '').trim();
+    for (const name of names.map(norm).filter(Boolean)) {
+        const hit = list.find(c => norm(c.name) === name);
+        if (hit && norm(hit.tag)) return { name: hit.name, tag: norm(hit.tag), nl: norm(hit.nl) };
+    }
+    return null;
+}
+
+/** 柏宝绘图库里放这个角色头像的目录名（柏宝绘自己定的规则：柏宝绘_<character>） */
+const baibaiFolder = name => `柏宝绘_${name}`;
+
+/**
+ * 让柏宝绘按它记录的外貌画一张半身像，原图存进柏宝绘图库（按角色分组），返回裁好的小头像
+ * @param {string[]} names 主名在前
+ * @param {(text:string)=>void} [onProgress]
+ * @returns {Promise<string|null>} 头像 dataURL
+ */
+export async function drawAvatarWithBaibai(names, onProgress) {
+    const api = baibaiApi();
+    if (!api) { EDITOR.warning('没检测到柏宝绘'); return null; }
+    const ch = baibaiCharacter(names);
+    if (!ch) { EDITOR.warning(`柏宝绘的角色库里没有「${names[0]}」，先在柏宝绘里给这个人建档`); return null; }
+    let status = null;
+    try { status = api.getBackendStatus(); } catch (_) { }
+    if (status && !status.configured) { EDITOR.warning(status.reason || '柏宝绘还没配好出图'); return null; }
+    const phases = { queued: '排队中…', generating: '画头像中…', 'queued-remote': '排队中…', retrying: '被限流，重试中…', saving: '保存中…' };
+    try {
+        const result = await api.generate({
+            prompt: `${ch.tag}, solo, portrait, upper body, looking at viewer, simple background`,
+            nl: ch.nl,
+            size: 'portrait',
+            save: true,
+            character: names[0],
+        }, { onProgress: p => { try { onProgress?.(phases[p?.phase] || '画头像中…'); } catch (_) { } } });
+        return await urlToAvatar(result.dataUrl || result.path);
+    } catch (error) {
+        const why = { not_configured: '柏宝绘还没配好出图', rate_limited: '被限流了，等一会儿再试', aborted: '已取消' }[error?.code];
+        EDITOR.error('柏宝绘画头像失败', why || error?.message || '', error);
+        return null;
+    }
+}
+
+/**
+ * 柏宝绘图库里这个角色目录下的图（新的在前）。
+ * 先查目录列表再列文件：ST 的 /api/images/list 遇到不存在的目录会顺手建一个空目录。
+ * @param {string} name
+ * @returns {Promise<string[]>} 可直接当 <img src> 的路径
+ */
+export async function listBaibaiImages(name) {
+    const folder = baibaiFolder(name);
+    const post = async (url, body) => {
+        const res = await fetch(url, { method: 'POST', headers: USER.getContext().getRequestHeaders(), body: JSON.stringify(body) });
+        if (!res.ok) throw new Error(`${res.status}`);
+        return res.json();
+    };
+    try {
+        const folders = await post('/api/images/folders', {});
+        if (!Array.isArray(folders) || !folders.includes(folder)) return [];
+        const files = await post('/api/images/list', { folder, sortField: 'date', sortOrder: 'desc' });
+        return (Array.isArray(files) ? files : [])
+            .filter(f => typeof f === 'string' && /\.(png|jpe?g|webp|gif)$/i.test(f))
+            .slice(0, 24)
+            .map(f => `/user/images/${encodeURIComponent(folder)}/${encodeURIComponent(f)}`);
+    } catch (error) {
+        console.warn('[角色资料卡] 读柏宝绘图库失败', error);
+        return [];
+    }
+}
+
+/**
+ * 任意图片地址 → 正方形小头像 dataURL。竖图取偏上的那块（脸一般在上面）
+ * @param {string} src
+ * @param {number} [size]
+ */
+export async function urlToAvatar(src, size = 128) {
+    if (!src) return null;
+    const img = new Image();
+    await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = () => reject(new Error('图片读不出来')); img.src = src; });
+    const w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+    const side = Math.min(w, h);
+    const sx = (w - side) / 2;
+    const sy = h > w ? (h - side) * 0.12 : 0;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, size, size);
+    ctx.drawImage(img, sx, sy, side, side, 0, 0, size, size);
+    return canvas.toDataURL('image/jpeg', 0.85);
+}

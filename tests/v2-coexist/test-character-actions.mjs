@@ -160,4 +160,29 @@ assert.equal(await A.condenseField({ primary: '陈映竹', sheetUid: uid, rowInd
 assert.equal(await A.condenseField({ primary: '陈映竹', sheetUid: 'nope', rowIndex: 0, col: 2, label: '经历', value: '' }), false, '找不到格子返回 false');
 console.log('✓ AI 精简长字段：确认、对比、写回最新一层、老楼层不变');
 
+// 柏宝绘联动：只调它公开的 globalThis.STBaiBaiImage
+assert.equal(A.baibaiApi(), null, '没装柏宝绘时为 null');
+assert.equal(A.baibaiCharacter(['陈映竹']), null);
+const gens = [];
+globalThis.STBaiBaiImage = {
+  apiVersion: 1,
+  getCharacters: () => ({ characters: [{ name: '小竹', tag: '1girl, long black hair', nl: '' }, { name: '戴雪莲', tag: '  ', nl: '' }] }),
+  getBackendStatus: () => ({ configured: false, reason: '没填 Key' }),
+  generate: async (req) => { gens.push(req); return { dataUrl: '' }; },
+};
+assert.ok(A.baibaiApi());
+assert.deepEqual(A.baibaiCharacter(['陈映竹', '小竹']), { name: '小竹', tag: '1girl, long black hair', nl: '' }, '主名没有时用外号找');
+assert.equal(A.baibaiCharacter(['戴雪莲']), null, '没外貌词的不算');
+assert.equal(await A.drawAvatarWithBaibai(['陈映竹', '小竹']), null, '后端没配好不出图');
+assert.equal(gens.length, 0);
+globalThis.STBaiBaiImage.getBackendStatus = () => ({ configured: true, reason: '' });
+assert.equal(await A.drawAvatarWithBaibai(['陈映竹', '小竹']), null, '空图返回 null');
+assert.equal(gens.length, 1);
+assert.match(gens[0].prompt, /^1girl, long black hair, solo, portrait/);
+assert.equal(gens[0].save, true); assert.equal(gens[0].character, '陈映竹');
+globalThis.STBaiBaiImage.generate = async () => { const e = new Error('x'); e.code = 'rate_limited'; throw e; };
+assert.equal(await A.drawAvatarWithBaibai(['小竹']), null, '出错返回 null 不抛');
+delete globalThis.STBaiBaiImage;
+console.log('✓ 柏宝绘画头像：找人、没配好不画、提示词、存图库、出错不抛');
+
 console.log('全部通过');
