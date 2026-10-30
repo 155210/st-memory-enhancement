@@ -10,7 +10,6 @@ import { applyTheme } from './core/themes.js';
 import { buildLocationTree } from './core/locationTree.js';
 import { cleanFinishedTasks } from './core/taskCleanup.js';
 import { completePieceHash, fillMissingSheets, repairArchive } from './core/sheetRepair.js';
-import { openRequestPanel } from './core/extraRequest.js';
 import { attachMapZoom, drawAiMap, mapMode, mapPanelHtml, maybeDrawOnNewPlace, presentNames } from './core/worldMap.js';
 import { applyConditionalBlocks, dueReminderText, lastInjection, recordInjection } from './core/promptExtras.js';
 import { annotateRelativeDates, buildRecallBlock, currentStoryDate, isArchiveSheet, migrateOldSummaries, runSummaryAfterFill, shouldIgnoreAiEdit, summaryConfig, summaryUndoList, undoLastSummary } from './core/summaryManager.js';
@@ -37,7 +36,7 @@ import { findActiveOriginal, importOriginalSettingsOnce, offerChatImport, import
 
 console.log("______________________记忆插件：开始加载______________________")
 
-const VERSION = '2.2.28-v2.28'
+const VERSION = '2.2.29-v2.29'
 // v2 的版本检查地址（v2 单独一个仓库，和原版的更新提示互不干扰）
 const V2_MANIFEST_URL = 'https://raw.githubusercontent.com/155210/st-memory-enhancement-v2/refs/heads/master/manifest.json'
 
@@ -1411,9 +1410,6 @@ jQuery(async () => {
         await USER.saveChat()
         await updateSheetsView()
         EDITOR.success(`从第 ${fixed.from} 层找回了 ${fixed.restored} 条归档`)
-    })
-    $(document).on('click', '#table_v2_request_panel_button', function () {
-        openRequestPanel()
     })
     $(document).on('click', '#table_v2_diagnostics_button', function () {
         try {
