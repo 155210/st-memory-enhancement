@@ -36,7 +36,7 @@ import { findActiveOriginal, importOriginalSettingsOnce, offerChatImport, import
 
 console.log("______________________记忆插件：开始加载______________________")
 
-const VERSION = '2.2.30-v2.30'
+const VERSION = '2.2.31-v2.31'
 // v2 的版本检查地址（v2 单独一个仓库，和原版的更新提示互不干扰）
 const V2_MANIFEST_URL = 'https://raw.githubusercontent.com/155210/st-memory-enhancement-v2/refs/heads/master/manifest.json'
 
@@ -1251,6 +1251,7 @@ jQuery(async () => {
             ...preview.columnsAdded.map(x => `追加列：${x}`),
             ...preview.added.map(x => `新建表（排在最后）：${x}`),
             ...preview.skippedHeaders.map(x => `只同步规则、表头不动：${x}`),
+            ...preview.disabled.map(x => `模板里没有了，停用（内容保留，不再发给 AI）：${x}`),
         ]
         if (!lines.length) return EDITOR.success('本聊天的表格已经和模板一致')
         const ok = await EDITOR.callGenericPopup(`把全局模板同步到这个聊天：<br><br>${lines.join('<br>')}<br><br>已有的表格内容一格都不动；结果存到最新一层，可以回退。`, EDITOR.POPUP_TYPE.CONFIRM, '同步模板到本聊天', { okButton: '同步', cancelButton: '取消' })

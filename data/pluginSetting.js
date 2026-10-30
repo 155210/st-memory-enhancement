@@ -146,6 +146,7 @@ export const defaultSettings = await switchLanguage('__defaultSettings__', {
     v2_summary_table: '大总结',
     v2_summary_archive_table: '总结归档',
     v2_summary_event_threshold: 20,
+    v2_summary_event_keep: 3,
     v2_summary_batch: 10,
     v2_summary_keep: 3,
     v2_summary_recall_count: 5,

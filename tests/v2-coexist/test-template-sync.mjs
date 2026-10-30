@@ -47,7 +47,10 @@ const templates = [
   mkTemplate('重要物品表格', ['物品名', '拥有人'], { note: 'x' }),
   mkTemplate('悬念簿', ['悬念', '状态'], { note: '伏笔' }),
 ];
-const chatSheets = [people, events, odd];
+const leftover = mkChat('旧表', ['甲'], {});
+leftover.findCellByPosition(0, 0).newAction('insertDownRow', {}, false);
+leftover.getCellsByRowIndex(1)[1].data.value = '留着';
+const chatSheets = [people, events, odd, leftover];
 const preview = syncChatSheetsWithTemplates(chatSheets, BASE.templates, true);
 assert.deepEqual(dump(people), [['角色名', '对<user>关系'], ['林雪', '同学']], '预览不该改东西');
 const report = syncChatSheetsWithTemplates(chatSheets, BASE.templates);
@@ -58,7 +61,11 @@ assert.equal(people.data.note, '新说明');
 assert.equal(events.data.insertNode, '新插入规则');
 assert.deepEqual(dump(odd)[0], ['拥有人', '物品'], '列对不上时表头不动');
 assert.equal(odd.data.note, 'x');
+assert.deepEqual(report.disabled, ['旧表']);
+assert.equal(leftover.enable, false, '模板里没有的表停用');
+assert.deepEqual(dump(leftover), [['甲'], ['留着']], '停用的表内容不动');
 chatSheets.forEach(s => s.save(chat[1], true));
 const names = BASE.getChatSheets().map(s => s.name);
+assert.equal(BASE.getChatSheets().find(s => s.name === '旧表')?.enable, false, '停用存下来了');
 assert.equal(names[names.length - 1], '悬念簿', '新表排最后');
 console.log('✓ 规则同步、表头加标记、追加新列、新表排最后、列对不上只报告；数据不动');

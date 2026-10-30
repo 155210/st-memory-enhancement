@@ -9,7 +9,7 @@ import { askExtra } from './extraRequest.js';
 
 /**
  * @description 大总结交给程序管（B3、M1、M2、M3、M5、M6、M8）
- * @description - 事件历史满 N 条：程序另发一个请求，把这些事件写成一条「大」总结，记下楼层范围和涉及角色，再删掉事件
+ * @description - 事件历史满 N 条：程序另发一个请求，把除最后几条以外的事件写成一条「大」总结，记下楼层范围和涉及角色，再删掉写进去的事件
  * @description - 「大」总结攒够 batch + keep 条：最早的 batch 条压成一条「卷」，「卷」同理压成「篇」；被压掉的原文移进归档表，不删
  * @description - 每轮按最近几层出现的人名，从归档里找回最多几条相关旧事，附在表格后面发给 AI
  * @description - 发送时给总结里的日期标上「几天前」
@@ -29,6 +29,7 @@ export function summaryConfig() {
         summaryTable: s.v2_summary_table || '大总结',
         archiveTable: s.v2_summary_archive_table || '总结归档',
         eventThreshold: Number(s.v2_summary_event_threshold) || 20,
+        eventKeep: Number(s.v2_summary_event_keep) >= 0 ? Number(s.v2_summary_event_keep) : 3,
         batch: Number(s.v2_summary_batch) || 10,
         keep: Number(s.v2_summary_keep) >= 0 ? Number(s.v2_summary_keep) : 3,
         recallCount: Number(s.v2_summary_recall_count) >= 0 ? Number(s.v2_summary_recall_count) : 5,
@@ -232,7 +233,14 @@ export async function runSummaryPipeline(piece, floor, { sourcePiece = piece, co
         sheets.forEach(sheet => sheet.save(piece, true));
         source = piece;
     };
-    const eventText = (events) => readRows(events).map((row, i) => `${i + 1}. ${row.values.filter(Boolean).join(' / ')}`).join('\n');
+    const rowsText = (rows) => rows.map((row, i) => `${i + 1}. ${row.values.filter(Boolean).join(' / ')}`).join('\n');
+    const eventText = (events) => rowsText(readRows(events));
+    // 写进大总结的事件：留下最后 eventKeep 条接着下一轮，至少写 2 条
+    const eventsToSummarize = (events) => {
+        const rows = readRows(events);
+        const count = Math.max(0, rows.length - config.eventKeep);
+        return count >= 2 ? rows.slice(0, count) : [];
+    };
     try {
         let t = load();
         if (!t.events || !t.summary) return [];
@@ -242,24 +250,26 @@ export async function runSummaryPipeline(piece, floor, { sourcePiece = piece, co
 
         // 1. 事件满了 → 一条「大」总结
         const eventCount = readRows(t.events).length;
-        if (eventCount >= config.eventThreshold) {
-            const text = eventText(t.events);
+        const picked = eventCount >= config.eventThreshold ? eventsToSummarize(t.events) : [];
+        if (picked.length) {
+            const whole = eventText(t.events);
+            const text = rowsText(picked);
             const lastBig = readSummaryRows(t.summary).filter(r => r.level === LEVELS[0]).pop();
             const prompt = `${lastBig ? `（上一条大总结的结尾，只用来衔接，不要复述：${lastBig.content.slice(-60)}）\n\n` : ''}事件历史：\n${text}`;
-            const result = await cachedAsk(state, EVENT_SYSTEM, prompt, `写大总结（事件 ${eventCount} 条）`);
+            const result = await cachedAsk(state, EVENT_SYSTEM, prompt, `写大总结（事件 ${picked.length} 条）`);
             const { summary: content, past } = parseSummaryOutput(result);
             if (!content) throw new Error('大总结为空');
             t = load();
-            if (eventText(t.events) === text) {
+            if (eventText(t.events) === whole) {
                 const names = collectNames(t.sheets);
                 const range = `${rangeStart(state, floor)}-${floor}`;
                 appendRow(t.summary, summaryData(t.summary, { content, level: LEVELS[0], range, roles: findRolesInText(text, names).join('|') }));
-                deleteRows(t.events, readRows(t.events).map(r => r.rowIndex));
+                deleteRows(t.events, readRows(t.events).slice(0, picked.length).map(r => r.rowIndex));
                 appendPast(t.sheets, past);
                 commit(t.sheets);
                 // 重 roll 同一层时不会记两次
                 state.summaryFloors = [...state.summaryFloors.filter(f => f < floor), floor].slice(-50);
-                log.push(`事件历史 ${eventCount} 条写成 1 条大总结（${range} 层）`);
+                log.push(`事件历史 ${picked.length} 条写成 1 条大总结（${range} 层），留下最后 ${eventCount - picked.length} 条`);
             }
         }
 
@@ -355,7 +365,7 @@ export async function undoLastSummary() {
         }
         const eventUid = uidOf(config.eventTable);
         if (eventUid && entry.before[eventUid] && target[eventUid]) {
-            // 写总结前的事件 + 之后新记的事件（写完总结时事件表是清空的，所以现在表里的都是新的）
+            // 写总结前的事件 + 之后新记的事件（写完总结时留下的几条在「写总结前」里已经有了，不重复放）
             const kept = new Set(entry.after?.[eventUid]?.slice(1).map(row => row.join('|')) || []);
             const added = target[eventUid].slice(1).filter(row => !kept.has(row.join('|')));
             target[eventUid] = [target[eventUid][0], ...entry.before[eventUid].slice(1), ...added];
