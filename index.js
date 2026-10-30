@@ -36,7 +36,7 @@ import { findActiveOriginal, importOriginalSettingsOnce, offerChatImport, import
 
 console.log("______________________记忆插件：开始加载______________________")
 
-const VERSION = '2.2.38-v2.38'
+const VERSION = '2.2.39-v2.39'
 // v2 的版本检查地址（v2 单独一个仓库，和原版的更新提示互不干扰）
 const V2_MANIFEST_URL = 'https://raw.githubusercontent.com/155210/st-memory-enhancement-v2/refs/heads/master/manifest.json'
 
@@ -1084,7 +1084,7 @@ jQuery(async () => {
     applyTheme();
 
     // 注册API
-    window.stMemoryEnhancement = {
+    const api = {
         ext_getAllTables,
         ext_exportAllTablesAsJson,
         VERSION,
@@ -1092,6 +1092,9 @@ jQuery(async () => {
         isV2: true,
         storageKeys: { ...V2 },
     };
+    // v2 单独挂一个名字；原版也挂 stMemoryEnhancement，已被原版占着就不抢，外部模块才能同时找到两个
+    window.stMemoryEnhancementV2 = api;
+    if (!window.stMemoryEnhancement || window.stMemoryEnhancement.isV2) window.stMemoryEnhancement = api;
 
     // 初始化外部数据适配器
     try {
