@@ -5,6 +5,8 @@
 import { BASE, EDITOR, USER } from '../../core/manager.js';
 import { Cell } from '../../core/table/cell.js';
 import { askExtra } from '../../core/extraRequest.js';
+import { loadSheetsFilled, completePieceHash } from '../../core/sheetRepair.js';
+import { V2 } from '../../core/v2keys.js';
 
 /** HTML 转义 */
 function esc(text) {
@@ -130,7 +132,7 @@ export async function condenseField({ primary, sheetUid, rowIndex, col, label, v
         const { piece: tablePiece } = BASE.getLastSheetsPiece();
         const { piece: currentPiece } = USER.getChatPiece();
         if (!currentPiece) { EDITOR.error('没有可以保存表格的 AI 消息，请先聊一轮'); return false; }
-        const sheets = BASE.hashSheetsToSheets(BASE.getPieceHash(tablePiece));
+        const sheets = loadSheetsFilled(tablePiece);
         const sheet = sheets.find(s => s.uid === sheetUid);
         const cell = sheet?.findCellByPosition(Number(rowIndex) + 1, Number(col) + 1);
         if (!cell) { EDITOR.error('没找到这一格，表格可能已经变了'); return false; }
@@ -165,6 +167,7 @@ export async function condenseField({ primary, sheetUid, rowIndex, col, label, v
         // 直接改这一格（绕开 # 列只能追加的规则）；用 editCell 生成新格子，回退到老楼层时还是原样
         cell.newAction(Cell.CellAction.editCell, { value: next }, false);
         sheets.forEach(s => s.save(currentPiece, true));
+        completePieceHash(currentPiece, V2.pieceHash);
         await USER.saveChat();
         try {
             const { updateSheetsView } = await import('../../index.js');
@@ -368,7 +371,7 @@ export function copyText(text) {
 /** 按表名找当前表格的 uid */
 function sheetUidByName(sheetName) {
     try {
-        const sheets = BASE.hashSheetsToSheets(BASE.getPieceHash(BASE.getLastSheetsPiece()?.piece));
+        const sheets = loadSheetsFilled(BASE.getLastSheetsPiece()?.piece);
         return sheets.find(s => s.name === sheetName)?.uid || null;
     } catch (_) {
         return null;

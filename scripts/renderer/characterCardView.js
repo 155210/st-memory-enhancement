@@ -8,6 +8,8 @@ import * as CD from '../../core/characterData.js';
 import * as CS from '../../core/characterStatus.js';
 import * as ACT from './characterCardActions.js';
 import { avatarHtml, clean, curveSvg, cycleHtml, egoGraphSvg, esc, firstLine, meterHtml, short, signed } from './characterCardParts.js';
+import { loadSheetsFilled, completePieceHash } from '../../core/sheetRepair.js';
+import { V2 } from '../../core/v2keys.js';
 
 /**
  * @description 角色资料卡：挂在最新一条消息底部（或聊天最下面）的一条可展开的栏
@@ -60,7 +62,7 @@ const safe = (fn, fallback) => { try { return fn(); } catch (e) { console.warn('
 
 /** 从表格建一次档案索引（只看表，不扫聊天） */
 function buildModel() {
-    const sheets = safe(() => BASE.hashSheetsToSheets(BASE.getPieceHash(BASE.getLastSheetsPiece()?.piece)), []) || [];
+    const sheets = safe(() => loadSheetsFilled(BASE.getLastSheetsPiece()?.piece), []) || [];
     const built = safe(() => CD.buildProfiles(sheets), null) || { list: [], index: new Map(), orphans: [] };
     const list = [...built.list];
     const index = new Map(built.index);
@@ -777,7 +779,7 @@ async function setAlias(orphan, to) {
         const { piece: tablePiece } = BASE.getLastSheetsPiece();
         const { piece: currentPiece } = USER.getChatPiece();
         if (!currentPiece) return EDITOR.error('没有可以保存表格的 AI 消息，请先聊一轮');
-        const sheets = BASE.hashSheetsToSheets(BASE.getPieceHash(tablePiece));
+        const sheets = loadSheetsFilled(tablePiece);
         const home = model?.byPrimary.get(to)?.home;
         const candidates = [sheets.find(s => s.uid === home?.uid), ...sheets.filter(isNameKeyedSheet)].filter(Boolean);
         let done = false;
@@ -790,6 +792,7 @@ async function setAlias(orphan, to) {
         }
         if (!done) return EDITOR.warning(`角色表里没找到「${to}」`);
         sheets.forEach(s => s.save(currentPiece, true));
+        completePieceHash(currentPiece, V2.pieceHash);
         await USER.saveChat();
         try {
             const { updateSheetsView } = await import('../../index.js');
