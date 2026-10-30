@@ -182,7 +182,7 @@ export function renderGraphSvg(graph, pos, width = 800, height = 600) {
     }).join('');
     // 人少时关系词全显示；人多时先藏起来，点一个人只显示他的关系，免得字叠成一团
     const showAll = graph.nodes.length <= 10 ? ' v2g-show-all' : '';
-    return `<svg class="v2-relation-graph${showAll}" viewBox="0 0 ${width} ${height}" width="100%" style="height:auto;max-height:82vh;touch-action:none;user-select:none;-webkit-user-select:none">
+    return `<svg class="v2-relation-graph${showAll}" viewBox="0 0 ${width} ${height}" width="100%" style="height:auto;max-height:68vh;touch-action:none;user-select:none;-webkit-user-select:none">
 <style>.v2-relation-graph{--v2g-line:var(--SmartThemeBodyColor,#888);--v2g-node:var(--SmartThemeQuoteColor,#6a9);--v2g-user:var(--SmartThemeEmColor,#c96);--v2g-pair:var(--SmartThemeQuoteColor,#6a9)}.v2g-label{font-size:11px;fill:var(--SmartThemeBodyColor,#ccc);paint-order:stroke;stroke:var(--SmartThemeBlurTintColor,#1a1a2e);stroke-width:3px;stroke-linejoin:round}.v2g-name{font-size:13px;fill:var(--SmartThemeBodyColor,#eee);paint-order:stroke;stroke:var(--SmartThemeBlurTintColor,#1a1a2e);stroke-width:3px;stroke-linejoin:round}.v2-relation-graph:not(.v2g-show-all):not(.v2g-focus) .v2g-label{display:none}.v2g-focus .v2g-edge:not(.v2g-on) .v2g-label{display:none}.v2g-focus .v2g-edge:not(.v2g-on),.v2g-focus .v2g-node:not(.v2g-on){opacity:.12}.v2g-focus .v2g-edge.v2g-on line{stroke-width:2.5}</style>
 <g class="v2g-viewport">${lines}${circles}</g></svg>`;
 }
