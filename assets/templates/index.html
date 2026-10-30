@@ -9,78 +9,69 @@
 
             <div class="inline-drawer-content">
                 <div id="memory_enhancement_settings_inline_drawer_content">
-                    <!-- 记忆增强表格管理 -->
-                    <div style=" display: flex; flex-direction: row; flex-wrap: wrap; gap: 6px; justify-content: space-between; ">
-                        <div style=" display: flex; flex-direction: row; gap: 10px;">
-                            <div class="menu_button_icon menu_button interactable">
-                                <i class="fa-brands fa-github fa-lg"></i>
-                                <a href="https://github.com/muyoou/st-memory-enhancement/"
-                                    data-i18n="Project link">项目地址</a>
-                            </div>
-                            <div class="menu_button_icon menu_button interactable">
-                                <i class="fa-solid fa-book"></i>
-                                <a href="https://muyoo.com.cn/memory" data-i18n="Read tutorial">阅读教程</a>
-                            </div>
-                            <div class="menu_button_icon menu_button interactable">
-                                <i class="fa-solid fa-list"></i>
-                                <a href="https://github.com/muyoou/st-memory-enhancement/commits"
-                                    data-i18n="Changelog">更新记录</a>
-                            </div>
-                        </div>
-                        <div class="menu_button_icon menu_button interactable" id="table_v2_import_original_button" title="把原版在这个聊天里的表格复制一份到 v2，原版数据不改动">
-                            <i class="fa-solid fa-file-import"></i>
-                            <a>① 从原版导入</a>
-                        </div>
-                        <div class="menu_button_icon menu_button interactable" id="table_v2_sync_template_button" title="把全局模板的规则、表头和新表同步到当前聊天，不动已有数据">
-                            <i class="fa-solid fa-arrows-rotate"></i>
-                            <a>② 同步模板到本聊天</a>
-                        </div>
-                        <div class="menu_button_icon menu_button interactable" id="table_v2_merge_duplicates_button" title="把角色类表里同名的重复行合成一行">
-                            <i class="fa-solid fa-object-group"></i>
-                            <a>③ 合并重复角色</a>
-                        </div>
-                        <div class="menu_button_icon menu_button interactable" id="table_v2_migrate_summary_button" title="给已有的大总结补上层级、楼层范围、涉及角色，再按设置压缩，原文移进归档表">
-                            <i class="fa-solid fa-layer-group"></i>
-                            <a>④ 整理旧大总结</a>
-                        </div>
-                        <div class="menu_button_icon menu_button interactable" id="table_v2_injection_preview_button" title="看本轮实际发给 AI 的表格、行数和字数">
-                            <i class="fa-solid fa-eye"></i>
-                            <a>本轮注入预览</a>
-                        </div>
-                        <div class="menu_button_icon menu_button interactable" id="table_v2_map_button" title="看当前地点的地图和去过的地点树">
-                            <i class="fa-solid fa-map-location-dot"></i>
-                            <a>地图</a>
-                        </div>
-                        <div class="menu_button_icon menu_button interactable" id="table_v2_relation_graph_button" title="把角色表、社交表和大总结画成关系网，只给你看">
-                            <i class="fa-solid fa-diagram-project"></i>
-                            <a>关系图</a>
-                        </div>
-                        <div class="menu_button_icon menu_button interactable" id="table_v2_fusion_button" title="挑一段楼层让 AI 写一条更细的总结">
-                            <i class="fa-solid fa-wand-magic-sparkles"></i>
-                            <a>手动融合总结</a>
-                        </div>
-                        <div class="menu_button_icon menu_button interactable" id="table_v2_backfill_button" title="新导入的聊天从第一层开始分批补填表格，开始前会确认">
-                            <i class="fa-solid fa-backward-fast"></i>
-                            <a>从头回填表格</a>
-                        </div>
-                        <div class="menu_button_icon menu_button interactable" id="table_v2_undo_summary_button" title="撤回程序最近一次写的大总结或压缩（最多能连撤 3 次）">
-                            <i class="fa-solid fa-rotate-left"></i>
-                            <a>撤回大总结</a>
-                        </div>
-                        <div class="menu_button_icon menu_button interactable" id="table_v2_repair_archive_button" title="从老楼层找回丢失的总结归档（只补回最新一层没有的行，不删任何东西）">
-                            <i class="fa-solid fa-box-archive"></i>
-                            <a>找回归档</a>
-                        </div>
-                        <div class="menu_button_icon menu_button interactable" id="table_v2_diagnostics_button" title="导出版本、设置、表格概况、最近报错和请求，方便排查（不含密钥）">
-                            <i class="fa-solid fa-stethoscope"></i>
-                            <a>导出诊断</a>
-                        </div>
-                        <div class="menu_button_icon menu_button interactable" id="table_debug_log_button">
-                            <i class="fa-solid fa-bug"></i>
-                            <a data-i18n="Logs">Log</a>
-                        </div>
+                    <!-- 记忆增强表格管理（v2 排版） -->
+                    <div class="v2h">
+                    <div class="v2h-links">
+                        <a class="v2h-link" href="https://github.com/muyoou/st-memory-enhancement/" target="_blank" title="项目地址"><i class="fa-brands fa-github"></i><span data-i18n="Project link">项目地址</span></a>
+                        <a class="v2h-link" href="https://muyoo.com.cn/memory" target="_blank" title="阅读教程"><i class="fa-solid fa-book"></i><span data-i18n="Read tutorial">阅读教程</span></a>
+                        <a class="v2h-link" href="https://github.com/muyoou/st-memory-enhancement/commits" target="_blank" title="更新记录"><i class="fa-solid fa-list"></i><span data-i18n="Changelog">更新记录</span></a>
                     </div>
+                    <section class="v2h-group is-steps">
+                        <div class="v2h-label">老聊天第一次用<small>按顺序点一遍</small></div>
+                        <div class="v2h-grid">
+                            <div class="menu_button interactable v2h-btn" id="table_v2_import_original_button" title="把原版在这个聊天里的表格复制一份到 v2，原版数据不改动">
+                                <span class="v2h-step">1</span><i class="fa-solid fa-file-import"></i><span class="v2h-text">从原版导入</span>
+                            </div>
+                            <div class="menu_button interactable v2h-btn" id="table_v2_sync_template_button" title="把全局模板的规则、表头和新表同步到当前聊天，不动已有数据">
+                                <span class="v2h-step">2</span><i class="fa-solid fa-arrows-rotate"></i><span class="v2h-text">同步模板到本聊天</span>
+                            </div>
+                            <div class="menu_button interactable v2h-btn" id="table_v2_merge_duplicates_button" title="把角色类表里同名的重复行合成一行">
+                                <span class="v2h-step">3</span><i class="fa-solid fa-object-group"></i><span class="v2h-text">合并重复角色</span>
+                            </div>
+                            <div class="menu_button interactable v2h-btn" id="table_v2_migrate_summary_button" title="给已有的大总结补上层级、楼层范围、涉及角色，再按设置压缩，原文移进归档表">
+                                <span class="v2h-step">4</span><i class="fa-solid fa-layer-group"></i><span class="v2h-text">整理旧大总结</span>
+                            </div>
+                        </div>
+                    </section>
+                    <section class="v2h-group is-tiles">
+                        <div class="v2h-label">平时看<small></small></div>
+                        <div class="v2h-grid">
+                            <div class="menu_button interactable v2h-btn" id="table_v2_injection_preview_button" title="看本轮实际发给 AI 的表格、行数和字数">
+                                <i class="fa-solid fa-eye"></i><span class="v2h-text">本轮注入预览</span>
+                            </div>
+                            <div class="menu_button interactable v2h-btn" id="table_v2_map_button" title="看当前地点的地图和去过的地点树">
+                                <i class="fa-solid fa-map-location-dot"></i><span class="v2h-text">地图</span>
+                            </div>
+                            <div class="menu_button interactable v2h-btn" id="table_v2_relation_graph_button" title="把角色表、社交表和大总结画成关系网，只给你看">
+                                <i class="fa-solid fa-diagram-project"></i><span class="v2h-text">关系图</span>
+                            </div>
+                        </div>
+                    </section>
+                    <section class="v2h-group is-tiles is-tools">
+                        <div class="v2h-label">出问题时<small></small></div>
+                        <div class="v2h-grid">
+                            <div class="menu_button interactable v2h-btn" id="table_v2_fusion_button" title="挑一段楼层让 AI 写一条更细的总结">
+                                <i class="fa-solid fa-wand-magic-sparkles"></i><span class="v2h-text">手动融合总结</span>
+                            </div>
+                            <div class="menu_button interactable v2h-btn" id="table_v2_backfill_button" title="新导入的聊天从第一层开始分批补填表格，开始前会确认">
+                                <i class="fa-solid fa-backward-fast"></i><span class="v2h-text">从头回填表格</span>
+                            </div>
+                            <div class="menu_button interactable v2h-btn" id="table_v2_undo_summary_button" title="撤回程序最近一次写的大总结或压缩（最多能连撤 3 次）">
+                                <i class="fa-solid fa-rotate-left"></i><span class="v2h-text">撤回大总结</span>
+                            </div>
+                            <div class="menu_button interactable v2h-btn" id="table_v2_repair_archive_button" title="从老楼层找回丢失的总结归档（只补回最新一层没有的行，不删任何东西）">
+                                <i class="fa-solid fa-box-archive"></i><span class="v2h-text">找回归档</span>
+                            </div>
+                            <div class="menu_button interactable v2h-btn" id="table_v2_diagnostics_button" title="导出版本、设置、表格概况、最近报错和请求，方便排查（不含密钥）">
+                                <i class="fa-solid fa-stethoscope"></i><span class="v2h-text">导出诊断</span>
+                            </div>
+                            <div class="menu_button interactable v2h-btn" id="table_debug_log_button">
+                                <i class="fa-solid fa-bug"></i><span class="v2h-text">Log</span>
+                            </div>
+                        </div>
+                    </section>
                     <div id="table_message_tip"></div>
+                    </div>
 
 
                     <!--                        <hr/>-->
@@ -88,52 +79,103 @@
                     <!-- 子设置 -->
                     <div class="persona_management_left_column flex-container wide100p flexGap10"
                         style="padding: 10px 0; gap: 10px">
-                        <div class="flex1 wide50p" style="min-width: 300px">
-                            <h4 class="standoutHeader" data-i18n="Plugin settings">插件设置</h4>
+                        <div class="flex1 wide50p v2s-col">
 
                             <!-- 基础设置 -->
-                            <div>
-                                <h4 class="standoutHeader flex-container wide100p"
-                                    style="justify-content: space-between; align-items: center">
-                                    <div data-i18n="Import, export and reset plugin">导入导出与重置插件</div>
-                                    <div class="flex-container">
-                                        <div class="menu_button button-square-icon fa-solid fa-file-import"
-                                            id="table-set-import" title="导入表格预设"
-                                            data-i18n="[title]Import table presets"></div>
-                                        <!--                                        <input type="file" id="table-set-importFile" accept=".json" hidden>-->
-                                        <div class="menu_button button-square-icon fa-solid fa-file-export"
-                                            id="table-set-export" title="导出表格预设"
-                                            data-i18n="[title]Export table presets"></div>
-                                        <div class="menu_button button-square-icon fa-solid fa-undo" id="table-reset"
-                                            title="重置表格预设" data-i18n="[title]Reset table presets"></div>
-                                    </div>
-                            </div>
+                            <section class="v2s-card v2s-inline">
+                                <div class="v2s-title"><i class="fa-solid fa-box-open"></i><span data-i18n="Import, export and reset plugin">导入导出与重置插件</span></div>
+                                <div class="v2s-icons">
+                                    <div class="menu_button button-square-icon fa-solid fa-file-import"
+                                        id="table-set-import" title="导入表格预设"
+                                        data-i18n="[title]Import table presets"></div>
+                                    <div class="menu_button button-square-icon fa-solid fa-file-export"
+                                        id="table-set-export" title="导出表格预设"
+                                        data-i18n="[title]Export table presets"></div>
+                                    <div class="menu_button button-square-icon fa-solid fa-undo" id="table-reset"
+                                        title="重置表格预设" data-i18n="[title]Reset table presets"></div>
+                                </div>
+                            </section>
 
-                            <h4 data-i18n="Plugin switches">插件开关</h4>
-                            <div class="checkbox_label range-block justifyLeft">
-                                <input type="checkbox" id="table_switch"><span data-i18n="Enable plugin">启用插件</span>
-                            </div>
-                            <!--                                <div class="checkbox_label">-->
-                            <!--                                    <input type="checkbox" id="table_switch_creator_mode"><span>创作者模式</span>-->
-                            <!--                                </div>-->
-                            <div class="checkbox_label range-block justifyLeft">
-                                <input type="checkbox" id="table_switch_debug_mode"><span
-                                    data-i18n="Debug mode">调试模式</span>
-                                <small class="toggle-description justifyLeft"
-                                    data-i18n="Debug mode description">(开启后会有一定性能损耗，仅用于代码开发调试)</small>
-                            </div>
-                            <div class="checkbox_label range-block justifyLeft">
-                                <input type="checkbox" id="table_v2_summary_switch"><span>大总结交给程序管（v2）</span>
-                                <small class="toggle-description justifyLeft">(事件历史满了另发一次请求写大总结；大总结多了逐级压成「卷」「篇」，原文移进「总结归档」表；按本轮出场的人从归档找回旧事；给大总结里的日期标上几天前)</small>
-                            </div>
-                            <div id="table_v2_summary_options" style="display: flex; flex-wrap: wrap; gap: 6px 12px; padding-left: 5px;">
-                                <label>事件满几条写大总结 <input type="number" id="table_v2_summary_event_threshold" class="text_pole" min="2" style="width: 60px"></label>
-                                <label>几条压成一条 <input type="number" id="table_v2_summary_batch" class="text_pole" min="2" style="width: 60px"></label>
-                                <label>最近几条不压 <input type="number" id="table_v2_summary_keep" class="text_pole" min="0" style="width: 60px"></label>
-                                <label>每轮最多找回几条旧事 <input type="number" id="table_v2_summary_recall_count" class="text_pole" min="0" style="width: 60px"></label>
-                            </div>
-                            <div style="padding-left: 5px;">
-                                <label>表格配色（v2）
+                            <section class="v2s-card">
+                                <div class="v2s-title"><i class="fa-solid fa-power-off"></i><span data-i18n="Plugin switches">插件开关</span></div>
+                                <div class="checkbox_label range-block justifyLeft">
+                                    <input type="checkbox" id="table_switch"><span data-i18n="Enable plugin">启用插件</span>
+                                </div>
+                                <div class="checkbox_label range-block justifyLeft">
+                                    <input type="checkbox" id="table_switch_debug_mode"><span
+                                        data-i18n="Debug mode">调试模式</span>
+                                    <small class="toggle-description justifyLeft"
+                                        data-i18n="Debug mode description">(开启后会有一定性能损耗，仅用于代码开发调试)</small>
+                                </div>
+                            </section>
+
+                            <section class="v2s-card">
+                                <div class="v2s-title"><i class="fa-solid fa-layer-group"></i><span>大总结</span></div>
+                                <div class="checkbox_label range-block justifyLeft">
+                                    <input type="checkbox" id="table_v2_summary_switch"><span>大总结交给程序管</span>
+                                    <small class="toggle-description justifyLeft">(事件历史满了另发一次请求写大总结；大总结多了逐级压成「卷」「篇」，原文移进「总结归档」表；按本轮出场的人从归档找回旧事；给大总结里的日期标上几天前)</small>
+                                </div>
+                                <div id="table_v2_summary_options" class="v2s-fields">
+                                    <label>事件满几条写大总结 <input type="number" id="table_v2_summary_event_threshold" class="text_pole" min="2"></label>
+                                    <label>几条压成一条 <input type="number" id="table_v2_summary_batch" class="text_pole" min="2"></label>
+                                    <label>最近几条不压 <input type="number" id="table_v2_summary_keep" class="text_pole" min="0"></label>
+                                    <label>每轮最多找回几条旧事 <input type="number" id="table_v2_summary_recall_count" class="text_pole" min="0"></label>
+                                </div>
+                            </section>
+
+                            <section class="v2s-card">
+                                <div class="v2s-title"><i class="fa-solid fa-paper-plane"></i><span>额外请求</span><small>写大总结、压缩、画地图、回填、融合</small></div>
+                                <label class="v2s-row">用哪个 API
+                                    <select id="table_v2_extra_api" class="text_pole">
+                                        <option value="">跟「表格总结/整理」里的「使用主API」一样</option>
+                                        <option value="main">主 API（聊天用的那个）</option>
+                                        <option value="custom">自定义独立 API</option>
+                                    </select>
+                                </label>
+                                <small class="toggle-description justifyLeft">(自定义 API 的地址和密钥填在「运行策略」下面的「自定义独立API」里。正文还在生成时会先等它生成完再发，不会抢正文的请求)</small>
+                                <div id="table_v2_preset_panel" class="v2p-panel"></div>
+                                <div id="table_v2_inline_output" class="v2-inline-output">
+                                    <div class="v2io-head">
+                                        <b>输出</b>
+                                        <span class="v2io-status">还没有额外请求。点「测试」发一句话看看流式输出。</span>
+                                        <div class="menu_button v2io-test" title="发一句很短的话，看看额外请求能不能出字、能不能流式">测试</div>
+                                        <div class="menu_button v2io-stop">停止</div>
+                                    </div>
+                                    <pre class="v2io-body"></pre>
+                                </div>
+                                <div class="checkbox_label range-block justifyLeft">
+                                    <input type="checkbox" id="table_v2_request_panel_switch"><span>额外请求时在底部显示输出面板</span>
+                                </div>
+                            </section>
+
+                            <section class="v2s-card">
+                                <div class="v2s-title"><i class="fa-solid fa-filter"></i><span>发给 AI 的内容</span></div>
+                                <div class="checkbox_label range-block justifyLeft">
+                                    <input type="checkbox" id="table_v2_tier_switch"><span>角色表分档发送</span>
+                                    <small class="toggle-description justifyLeft">(在场的人发完整资料，最近常出场的主要角色发简要，其余只列名字；你自己永远发完整)</small>
+                                </div>
+                                <div class="v2s-fields">
+                                    <label>主要角色人数 <input type="number" id="table_v2_tier_main_count" class="text_pole" min="0"></label>
+                                </div>
+                                <label class="v2s-row">找人名时跳过的标签 <input type="text" id="table_v2_ignore_tags" class="text_pole" placeholder="例如 status, 人物列表"></label>
+                                <small class="toggle-description justifyLeft">(填标签名，逗号分隔。正文里这些标签中间的内容，判断在场、找回旧事、触发发送时都不看；&lt;tableEdit&gt; 和思考本来就不看)</small>
+                                <div class="checkbox_label range-block justifyLeft">
+                                    <input type="checkbox" id="table_v2_task_cleanup_switch"><span>自动清理已完成任务</span>
+                                    <small class="toggle-description justifyLeft">(名字带「任务」的表里，「状态」或「持续时间」写着完成、取消、结束的行，每轮由程序删掉，只留最近几条；老楼层不变)</small>
+                                </div>
+                                <div class="v2s-fields">
+                                    <label>保留最近已完成几条 <input type="number" id="table_v2_task_keep_done" class="text_pole" min="0"></label>
+                                </div>
+                                <div class="checkbox_label range-block justifyLeft">
+                                    <input type="checkbox" id="table_v2_reminders_switch"><span>定时提醒</span>
+                                    <small class="toggle-description justifyLeft">(每行写「间隔轮数|提醒内容」，例如「10|检查悬念簿里有没有该收的伏笔」，到点时附在表格提示词后面)</small>
+                                </div>
+                                <textarea id="table_v2_reminders" class="text_pole wide100p" rows="3" placeholder="10|检查悬念簿里有没有该收的伏笔&#10;30|推进主线"></textarea>
+                            </section>
+
+                            <section class="v2s-card">
+                                <div class="v2s-title"><i class="fa-solid fa-palette"></i><span>外观与地图</span></div>
+                                <label class="v2s-row">表格配色
                                     <select id="table_v2_theme" class="text_pole">
                                         <option value="follow">跟随酒馆主题</option>
                                         <option value="paper">暖色纸张</option>
@@ -142,32 +184,7 @@
                                         <option value="contrast">高对比</option>
                                     </select>
                                 </label>
-                            </div>
-                            <div style="padding-left: 5px;">
-                                <label>额外请求用（v2：写大总结、压缩、画地图、回填、融合）
-                                    <select id="table_v2_extra_api" class="text_pole">
-                                        <option value="">跟「表格总结/整理」里的「使用主API」一样</option>
-                                        <option value="main">主 API（聊天用的那个）</option>
-                                        <option value="custom">自定义独立 API</option>
-                                    </select>
-                                </label>
-                                <small class="toggle-description justifyLeft">(自定义 API 的地址和密钥填在右边「运行策略」下面的「自定义独立API」里。正文还在生成时会先等它生成完再发，不会抢正文的请求)</small>
-                            </div>
-                            <div id="table_v2_preset_panel" class="v2p-panel"></div>
-                            <div id="table_v2_inline_output" class="v2-inline-output">
-                                <div class="v2io-head">
-                                    <b>额外请求输出（v2）</b>
-                                    <span class="v2io-status">还没有额外请求。点「测试」发一句话看看流式输出。</span>
-                                    <div class="menu_button v2io-test" title="发一句很短的话，看看额外请求能不能出字、能不能流式">测试</div>
-                                    <div class="menu_button v2io-stop">停止</div>
-                                </div>
-                                <pre class="v2io-body"></pre>
-                            </div>
-                            <div class="checkbox_label range-block justifyLeft">
-                                <input type="checkbox" id="table_v2_request_panel_switch"><span>额外请求时在底部显示输出面板（v2）</span>
-                            </div>
-                            <div style="padding-left: 5px;">
-                                <label>地图（v2）
+                                <label class="v2s-row">地图
                                     <select id="table_v2_map_mode" class="text_pole">
                                         <option value="off">关闭</option>
                                         <option value="box">程序画框图（不花 token）</option>
@@ -175,34 +192,10 @@
                                     </select>
                                 </label>
                                 <small class="toggle-description justifyLeft">(地点从时间标签里拆出来，一轮有多个标签时取最后一个当当前地点)</small>
-                            </div>
-                            <div class="checkbox_label range-block justifyLeft">
-                                <input type="checkbox" id="table_v2_tier_switch"><span>角色表分档发送（v2）</span>
-                                <small class="toggle-description justifyLeft">(在场的人发完整资料，最近常出场的主要角色发简要，其余只列名字；你自己永远发完整)</small>
-                            </div>
-                            <div style="padding-left: 5px;">
-                                <label>主要角色人数 <input type="number" id="table_v2_tier_main_count" class="text_pole" min="0" style="width: 60px"></label>
-                            </div>
-                            <div style="padding-left: 5px;">
-                                <label>找人名时跳过的标签 <input type="text" id="table_v2_ignore_tags" class="text_pole" placeholder="例如 status, 人物列表" style="width: 100%"></label>
-                                <small class="toggle-description justifyLeft">(填标签名，逗号分隔。正文里这些标签中间的内容，判断在场、找回旧事、触发发送时都不看；&lt;tableEdit&gt; 和思考本来就不看)</small>
-                            </div>
-                            <div class="checkbox_label range-block justifyLeft">
-                                <input type="checkbox" id="table_v2_task_cleanup_switch"><span>自动清理已完成任务（v2）</span>
-                                <small class="toggle-description justifyLeft">(名字带「任务」的表里，「状态」或「持续时间」写着完成、取消、结束的行，每轮由程序删掉，只留最近几条；老楼层不变)</small>
-                            </div>
-                            <div style="padding-left: 5px;">
-                                <label>保留最近已完成 <input type="number" id="table_v2_task_keep_done" class="text_pole" min="0" style="width: 60px"> 条</label>
-                            </div>
-                            <div class="checkbox_label range-block justifyLeft">
-                                <input type="checkbox" id="table_v2_reminders_switch"><span>定时提醒（v2）</span>
-                                <small class="toggle-description justifyLeft">(每行写「间隔轮数|提醒内容」，例如「10|检查悬念簿里有没有该收的伏笔」，到点时附在表格提示词后面)</small>
-                            </div>
-                            <div style="padding-left: 5px;">
-                                <textarea id="table_v2_reminders" class="wide100p" rows="3" placeholder="10|检查悬念簿里有没有该收的伏笔&#10;30|推进主线"></textarea>
-                            </div>
+                            </section>
                             <!-- v2：角色资料卡 -->
-                            <h4>角色资料卡（v2）</h4>
+                            <section class="v2s-card">
+                            <div class="v2s-title"><i class="fa-solid fa-id-card"></i><span>角色资料卡</span></div>
                             <div class="checkbox_label range-block justifyLeft">
                                 <input type="checkbox" id="table_v2_card_switch"><span>在聊天里显示角色资料卡</span>
                                 <small class="toggle-description justifyLeft">(把每个人在各张表里的内容、正文状态标签里的最新数值汇成一张卡片，只给你看，不发给 AI、不进提示词)</small>
@@ -248,7 +241,10 @@
                                 </div>
                             </div>
 
-                            <h4 data-i18n="Message template">消息模板</h4>
+                            </section>
+
+                            <section class="v2s-card">
+                            <div class="v2s-title"><i class="fa-solid fa-message"></i><span data-i18n="Message template">消息模板</span></div>
                             <div style="padding-left: 5px;">
                                 <label for="dataTable_message_template"></label>
                                 <small class="toggle-description justifyLeft"
@@ -257,7 +253,7 @@
                             </div>
                             <!-- 高级设置选项 -->
                             <div style="padding-left: 5px;">
-                                <div style="display: flex; align-items: center;">
+                                <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px 0;">
                                     <label for="dataTable_injection_mode" style="min-width: 50px"
                                         data-i18n="Injection">注入：</label>
                                     <select id="dataTable_injection_mode">
@@ -269,15 +265,16 @@
                                     </select>
                                     <label for="dataTable_deep" style="min-width: 60px; padding-left: 10px;"
                                         data-i18n="Depth">深度：</label>
-                                    <input id="dataTable_deep" class="text_pole" type="number">
+                                    <input id="dataTable_deep" class="text_pole" type="number" style="width: 72px;">
                                 </div>
                             </div>
+                            </section>
                         </div>
-                        <div class="flex1 wide50p" style="min-width: 300px">
+                        <div class="flex1 wide50p v2s-col">
                             <!-- 表格预设 -->
-                            <div>
+                            <div class="v2s-card">
                                 <!-- 预设设置 -->
-                                <h4 class="standoutHeader" data-i18n="Run strategy">运行策略</h4>
+                                <div class="v2s-title"><i class="fa-solid fa-gears"></i><span data-i18n="Run strategy">运行策略</span></div>
                                 <label for="fill_table_time" data-i18n="Render to">填表行为发生在：</label>
                                 <select id="fill_table_time" class="flex1" style="min-width: 100px">
                                     <option value="chat">聊天的同时填表</option>
@@ -406,7 +403,7 @@
                             </div>
 
                             <!-- 重新整理表格 -->
-                            <div class="inline-drawer wide100p">
+                            <div class="inline-drawer wide100p v2s-card">
                                 <div class="inline-drawer-toggle inline-drawer-header">
                                     <b><span data-i18n="Reorganize tables">表格总结/整理</span></b>
                                     <div class="fa-solid fa-circle-chevron-down inline-drawer-icon down"></div>
@@ -470,8 +467,8 @@
                             <!--                        <hr/>-->
 
                             <!-- 表格推送至对话 -->
-                            <div class="flex1 wide100p">
-                                <h4 class="standoutHeader" data-i18n="Frontend table (status bar)">前端表格（状态栏）</h4>
+                            <div class="flex1 wide100p v2s-card">
+                                <div class="v2s-title"><i class="fa-solid fa-table"></i><span data-i18n="Frontend table (status bar)">前端表格（状态栏）</span></div>
                                 <!--                            <b class="table_setting_category_header">表格推送至对话</b><div style="height: 10px;"></div>-->
                                 <div class="checkbox_label range-block justifyLeft">
                                     <input type="checkbox" id="show_settings_in_extension_menu" checked><span

@@ -36,7 +36,7 @@ import { findActiveOriginal, importOriginalSettingsOnce, offerChatImport, import
 
 console.log("______________________记忆插件：开始加载______________________")
 
-const VERSION = '2.2.29-v2.29'
+const VERSION = '2.2.30-v2.30'
 // v2 的版本检查地址（v2 单独一个仓库，和原版的更新提示互不干扰）
 const V2_MANIFEST_URL = 'https://raw.githubusercontent.com/155210/st-memory-enhancement-v2/refs/heads/master/manifest.json'
 
@@ -1323,7 +1323,7 @@ jQuery(async () => {
         if (!sure) return
         backfillRunning = true
         backfillStop = false
-        $('#table_v2_backfill_button a').text('停止回填')
+        $('#table_v2_backfill_button .v2h-text').text('停止回填')
         try {
             const result = await runBackfill(plan, applyTableEditText, {
                 shouldStop: () => backfillStop,
@@ -1336,7 +1336,7 @@ jQuery(async () => {
             EDITOR.error('回填中断，已经填好的批次保留，可以再点一次接着填', error.message, error)
         } finally {
             backfillRunning = false
-            $('#table_v2_backfill_button a').text('从头回填表格')
+            $('#table_v2_backfill_button .v2h-text').text('从头回填表格')
         }
     })
 
