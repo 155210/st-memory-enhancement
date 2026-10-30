@@ -17,6 +17,7 @@ export const V2 = {
     chatImport: 'memory_enhancement_v2_import',
     summaryState: 'memory_enhancement_v2_summary',
     summaryUndo: 'memory_enhancement_v2_summary_undo',
+    archiveRepaired: 'memory_enhancement_v2_archive_repaired',
     mapCache: 'memory_enhancement_v2_maps',
     characterCard: 'memory_enhancement_v2_character_card',
     // 每条消息上的数据

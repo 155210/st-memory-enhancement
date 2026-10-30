@@ -1,4 +1,5 @@
 import { BASE, USER } from './manager.js';
+import { loadSheetsFilled } from './sheetRepair.js';
 import { collectNames, findRolesInText, insertSummaryByRange, parseSummaryOutput, summaryConfig, summaryHooks } from './summaryManager.js';
 
 /**
@@ -84,7 +85,7 @@ export function insertFusion(content, floors, level = '大') {
     const { piece: source } = BASE.getLastSheetsPiece();
     const { piece: target } = USER.getChatPiece();
     if (!source || !target) throw new Error('没有可以保存表格的 AI 消息');
-    const sheets = BASE.hashSheetsToSheets(BASE.getPieceHash(source));
+    const sheets = loadSheetsFilled(source);
     const sheet = sheets.find(s => s.name === summaryConfig().summaryTable);
     if (!sheet) throw new Error(`找不到表「${summaryConfig().summaryTable}」`);
     const range = `${Math.min(...floors)}-${Math.max(...floors)}`;
